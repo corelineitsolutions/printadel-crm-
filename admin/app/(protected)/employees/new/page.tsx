@@ -18,10 +18,31 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, User, Loader2, Save } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { ArrowLeft, User, Loader2, Save, Plus } from "lucide-react";
 import Link from "next/link";
 import { employeeAPI } from "@/lib/api";
 import { toast } from "sonner";
+import { useAuthStore } from "@/store/authStore";
+import { AddOptionDialog } from "@/components/employees/add-option-dialog";
+import { DocumentUpload } from "@/components/employees/document-upload";
+
+type BaseRole = "ADMIN" | "MANAGER" | "EMPLOYEE";
+
+interface CustomRole {
+  _id?: string;
+  id?: string;
+  name: string;
+  baseRole: BaseRole;
+}
+
+const CUSTOM_ROLE_PREFIX = "custom:";
+
+const BASE_ROLE_LABELS: Record<BaseRole, string> = {
+  EMPLOYEE: "Employee",
+  MANAGER: "Manager",
+  ADMIN: "Admin",
+};
 
 const employeeSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters"),
@@ -29,7 +50,9 @@ const employeeSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
   fullName: z.string().min(2, "Full name is required"),
   phoneNumber: z.string().optional(),
+  address: z.string().optional(),
   role: z.enum(["ADMIN", "MANAGER", "EMPLOYEE"]),
+  roleName: z.string().optional(),
   employeeType: z.enum(["Full-time", "Part-time", "Contract"]).default("Full-time"),
   designation: z.string().optional(),
   department: z.string().optional(),
@@ -44,7 +67,17 @@ type EmployeeFormData = z.infer<typeof employeeSchema>;
 export default function NewEmployeePage() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { user } = useAuthStore();
   const [allowWorkFromHome, setAllowWorkFromHome] = useState(false);
+  const [roleDialogOpen, setRoleDialogOpen] = useState(false);
+  const [newRoleBase, setNewRoleBase] = useState<BaseRole>("EMPLOYEE");
+  const [departmentDialogOpen, setDepartmentDialogOpen] = useState(false);
+  const [panCardKey, setPanCardKey] = useState<string | null>(null);
+  const [aadhaarCardKey, setAadhaarCardKey] = useState<string | null>(null);
+  const [uploadingCount, setUploadingCount] = useState(0);
+
+  const trackUploading = (uploading: boolean) =>
+    setUploadingCount((count) => Math.max(0, count + (uploading ? 1 : -1)));
 
   const {
     register,
@@ -62,7 +95,63 @@ export default function NewEmployeePage() {
   });
 
   const selectedRole = watch("role");
+  const selectedRoleName = watch("roleName");
+  const selectedDepartment = watch("department");
   const selectedEmployeeType = watch("employeeType");
+  const roleSelectValue = selectedRoleName ? `${CUSTOM_ROLE_PREFIX}${selectedRoleName}` : selectedRole;
+
+  // Fetch custom roles
+  const { data: customRolesData } = useQuery({
+    queryKey: ["customRoles"],
+    queryFn: async () => {
+      const response = await employeeAPI.getAllCustomRoles();
+      return response.data;
+    },
+  });
+
+  const customRoles: CustomRole[] = customRolesData?.data || [];
+
+  const handleRoleChange = (value: string) => {
+    if (value.startsWith(CUSTOM_ROLE_PREFIX)) {
+      const name = value.slice(CUSTOM_ROLE_PREFIX.length);
+      const customRole = customRoles.find((r) => r.name === name);
+      if (!customRole) return;
+      setValue("role", customRole.baseRole);
+      setValue("roleName", customRole.name);
+    } else {
+      setValue("role", value as BaseRole);
+      setValue("roleName", "");
+    }
+  };
+
+  const createRoleMutation = useMutation({
+    mutationFn: (name: string) => employeeAPI.createCustomRole({ name, baseRole: newRoleBase }),
+    onSuccess: async (response) => {
+      const role: CustomRole = response.data.data;
+      await queryClient.invalidateQueries({ queryKey: ["customRoles"] });
+      setValue("role", role.baseRole);
+      setValue("roleName", role.name);
+      setRoleDialogOpen(false);
+      toast.success(`Role "${role.name}" added`);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || "Failed to add role");
+    },
+  });
+
+  const createDepartmentMutation = useMutation({
+    mutationFn: (name: string) => employeeAPI.createDepartment(name),
+    onSuccess: async (response) => {
+      const name: string = response.data.data.name;
+      await queryClient.invalidateQueries({ queryKey: ["departments"] });
+      setValue("department", name);
+      setDepartmentDialogOpen(false);
+      toast.success(`Department "${name}" added`);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || "Failed to add department");
+    },
+  });
 
   // Fetch managers for dropdown
   const { data: managersData } = useQuery({
@@ -93,9 +182,13 @@ export default function NewEmployeePage() {
       const payload = {
         ...restData,
         monthlySalary: salary,
+        roleName: data.roleName || null,
+        address: data.address?.trim() || null,
         managerId: data.managerId === "none" || !data.managerId ? null : data.managerId,
         department: data.department === "none" || !data.department ? null : data.department,
         allowWorkFromHome,
+        panCardKey,
+        aadhaarCardKey,
       };
       return employeeAPI.createEmployee(payload);
     },
@@ -220,6 +313,16 @@ export default function NewEmployeePage() {
                 />
               </div>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="address">Address</Label>
+              <Textarea
+                id="address"
+                {...register("address")}
+                placeholder="House / Flat, Street, City, State, PIN"
+                rows={3}
+              />
+            </div>
           </CardContent>
         </Card>
 
@@ -234,19 +337,36 @@ export default function NewEmployeePage() {
                 <Label htmlFor="role">
                   Role <span className="text-red-500">*</span>
                 </Label>
-                <Select
-                  value={selectedRole}
-                  onValueChange={(value: any) => setValue("role", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="EMPLOYEE">Employee</SelectItem>
-                    <SelectItem value="MANAGER">Manager</SelectItem>
-                    <SelectItem value="ADMIN">Admin</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select value={roleSelectValue} onValueChange={handleRoleChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="EMPLOYEE">Employee</SelectItem>
+                      <SelectItem value="MANAGER">Manager</SelectItem>
+                      <SelectItem value="ADMIN">Admin</SelectItem>
+                      {customRoles.map((role) => (
+                        <SelectItem key={role.name} value={`${CUSTOM_ROLE_PREFIX}${role.name}`}>
+                          {role.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="shrink-0"
+                    title="Add role"
+                    onClick={() => {
+                      setNewRoleBase("EMPLOYEE");
+                      setRoleDialogOpen(true);
+                    }}
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
                 {errors.role && (
                   <p className="text-sm text-red-500">{errors.role.message}</p>
                 )}
@@ -287,20 +407,33 @@ export default function NewEmployeePage() {
 
               <div className="space-y-2">
                 <Label htmlFor="department">Department</Label>
-                <Select
-                  onValueChange={(value) => setValue("department", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select department" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Array.from(new Set([...departments, "Engineering", "Design", "Marketing", "Sales", "HR"])).filter(d => !!d).map((dept: string) => (
-                      <SelectItem key={dept} value={dept}>
-                        {dept}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select
+                    value={selectedDepartment || ""}
+                    onValueChange={(value) => setValue("department", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from(new Set([...departments, "Engineering", "Design", "Marketing", "Sales", "HR"])).filter(d => !!d).map((dept: string) => (
+                        <SelectItem key={dept} value={dept}>
+                          {dept}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="shrink-0"
+                    title="Add department"
+                    onClick={() => setDepartmentDialogOpen(true)}
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -347,6 +480,23 @@ export default function NewEmployeePage() {
               </div>
             )}
 
+            <div className="grid gap-4 md:grid-cols-2">
+              <DocumentUpload
+                id="panCard"
+                label="PAN Card"
+                documentType="pan-card"
+                onChange={setPanCardKey}
+                onUploadingChange={trackUploading}
+              />
+              <DocumentUpload
+                id="aadhaarCard"
+                label="Aadhaar Card"
+                documentType="aadhaar-card"
+                onChange={setAadhaarCardKey}
+                onUploadingChange={trackUploading}
+              />
+            </div>
+
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="allowWorkFromHome"
@@ -372,7 +522,7 @@ export default function NewEmployeePage() {
           </Link>
           <Button
             type="submit"
-            disabled={createEmployeeMutation.isPending}
+            disabled={createEmployeeMutation.isPending || uploadingCount > 0}
             className="gap-2"
           >
             {createEmployeeMutation.isPending ? (
@@ -389,6 +539,47 @@ export default function NewEmployeePage() {
           </Button>
         </div>
       </form>
+
+      <AddOptionDialog
+        open={roleDialogOpen}
+        onOpenChange={setRoleDialogOpen}
+        title="Add Role"
+        label="Role name"
+        placeholder="e.g. Supervisor"
+        isSaving={createRoleMutation.isPending}
+        onSave={(name) => createRoleMutation.mutate(name)}
+      >
+        <div className="space-y-2">
+          <Label>Access level</Label>
+          <Select value={newRoleBase} onValueChange={(value) => setNewRoleBase(value as BaseRole)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(BASE_ROLE_LABELS) as BaseRole[])
+                .filter((role) => role !== "ADMIN" || user?.role === "ADMIN")
+                .map((role) => (
+                  <SelectItem key={role} value={role}>
+                    {BASE_ROLE_LABELS[role]}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Employees with this role get the same permissions as this access level.
+          </p>
+        </div>
+      </AddOptionDialog>
+
+      <AddOptionDialog
+        open={departmentDialogOpen}
+        onOpenChange={setDepartmentDialogOpen}
+        title="Add Department"
+        label="Department name"
+        placeholder="e.g. Quality Control"
+        isSaving={createDepartmentMutation.isPending}
+        onSave={(name) => createDepartmentMutation.mutate(name)}
+      />
     </div>
   );
 }

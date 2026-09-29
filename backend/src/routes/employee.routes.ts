@@ -11,6 +11,11 @@ import {
   deleteEmployee,
   getAllManagers,
   getAllDepartments,
+  createDepartment,
+  getAllCustomRoles,
+  createCustomRole,
+  uploadEmployeeDocument,
+  getEmployeeDocumentUrl,
 } from "../controllers/employee.controller";
 
 const router = Router();
@@ -29,11 +34,26 @@ router.get("/managers", getAllManagers);
 // Get all departments
 router.get("/departments", getAllDepartments);
 
+// Add department (ADMIN, MANAGER only)
+router.post("/departments", requireRoles(UserRole.ADMIN, UserRole.MANAGER), createDepartment);
+
+// Get custom roles
+router.get("/roles", getAllCustomRoles);
+
+// Add custom role (ADMIN, MANAGER only)
+router.post("/roles", requireRoles(UserRole.ADMIN, UserRole.MANAGER), createCustomRole);
+
+// Upload PAN / Aadhaar image (ADMIN, MANAGER only)
+router.post("/documents", requireRoles(UserRole.ADMIN, UserRole.MANAGER), uploadEmployeeDocument);
+
 // Get all employees
 router.get("/", getAllEmployees);
 
 // Get employee by ID
 router.get("/:id", getEmployeeById);
+
+// View PAN / Aadhaar image
+router.get("/:id/documents/:documentType", getEmployeeDocumentUrl);
 
 // Create employee (ADMIN, MANAGER only)
 router.post("/", requireRoles(UserRole.ADMIN, UserRole.MANAGER), createEmployee);

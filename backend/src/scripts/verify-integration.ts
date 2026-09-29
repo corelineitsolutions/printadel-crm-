@@ -15,8 +15,8 @@ async function verifyPrintadelCRM() {
   await mongoose.connect(mongoUri);
 
   // 1. Settings Verification
-  const setting = await Setting.findOne();
-  console.log("✅ Company Name in Settings:", setting?.companyName);
+  const setting = await Setting.findOne({ key: "companyName" });
+  console.log("✅ Company Name in Settings:", setting?.value);
 
   // 2. User & Employee Types Verification
   const users = await User.find().select("fullName email role employeeType monthlySalary hourlyRate");
@@ -64,21 +64,27 @@ async function verifyPrintadelCRM() {
   const ftUser = await User.findOne({ email: "amit@printadel.com" });
   if (ftUser) {
     const ftPayroll = await generatePayroll(ftUser._id.toString(), month, year);
-    console.log(`   [Full-time] ${ftUser.fullName}: Rule=${ftPayroll.payrollRule} | Base=₹${ftPayroll.basicSalary} | OT Hours=${ftPayroll.overtimeHours} | OT Pay=₹${ftPayroll.overtimePay} | Net=₹${ftPayroll.netPay}`);
+    if (ftPayroll) {
+      console.log(`   [Full-time] ${ftUser.fullName}: Rule=${ftPayroll.payrollRule} | Base=₹${ftPayroll.basicSalary} | OT Hours=${ftPayroll.overtimeHours} | OT Pay=₹${ftPayroll.overtimePay} | Net=₹${ftPayroll.netPay}`);
+    }
   }
 
   // Test Part-time employee (Sneha Gupta)
   const ptUser = await User.findOne({ email: "sneha@printadel.com" });
   if (ptUser) {
     const ptPayroll = await generatePayroll(ptUser._id.toString(), month, year);
-    console.log(`   [Part-time] ${ptUser.fullName}: Rule=${ptPayroll.payrollRule} | Hourly=₹${ptPayroll.hourlyRate} | Reg Hours=${ptPayroll.regularHours} | Base=₹${ptPayroll.basicSalary} | OT Hours=${ptPayroll.overtimeHours} | OT Pay=₹${ptPayroll.overtimePay} | Net=₹${ptPayroll.netPay}`);
+    if (ptPayroll) {
+      console.log(`   [Part-time] ${ptUser.fullName}: Rule=${ptPayroll.payrollRule} | Hourly=₹${ptPayroll.hourlyRate} | Reg Hours=${ptPayroll.regularHours} | Base=₹${ptPayroll.basicSalary} | OT Hours=${ptPayroll.overtimeHours} | OT Pay=₹${ptPayroll.overtimePay} | Net=₹${ptPayroll.netPay}`);
+    }
   }
 
   // Test Contract employee (Deepak Verma)
   const ctUser = await User.findOne({ email: "deepak@printadel.com" });
   if (ctUser) {
     const ctPayroll = await generatePayroll(ctUser._id.toString(), month, year);
-    console.log(`   [Contract] ${ctUser.fullName}: Rule=${ctPayroll.payrollRule} | Retainer=₹${ctPayroll.basicSalary} | OT Hours=${ctPayroll.overtimeHours} | OT Pay=₹${ctPayroll.overtimePay} | Net=₹${ctPayroll.netPay}`);
+    if (ctPayroll) {
+      console.log(`   [Contract] ${ctUser.fullName}: Rule=${ctPayroll.payrollRule} | Retainer=₹${ctPayroll.basicSalary} | OT Hours=${ctPayroll.overtimeHours} | OT Pay=₹${ctPayroll.overtimePay} | Net=₹${ctPayroll.netPay}`);
+    }
   }
 
   console.log("\n🎉 ALL PRINTADEL CRM MODULES VERIFIED PERFECTLY!");

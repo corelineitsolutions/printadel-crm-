@@ -314,7 +314,7 @@ export default function EmployeesPage() {
                               : "secondary"
                         }
                       >
-                        {employee.role}
+                        {employee.roleName || employee.role}
                       </Badge>
                       {employee.employeeType && (
                         <Badge

@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:7834";
 
 export const api = axios.create({
   baseURL: `${API_URL}/api`,
@@ -116,7 +116,15 @@ export const employeeAPI = {
   toggleEmployeeStatus: (id: string) => api.patch(`/employees/${id}/toggle-status`),
   deleteEmployee: (id: string) => api.delete(`/employees/${id}`),
   getAllDepartments: () => api.get("/employees/departments"),
+  createDepartment: (name: string) => api.post("/employees/departments", { name }),
+  getAllCustomRoles: () => api.get("/employees/roles"),
+  createCustomRole: (data: { name: string; baseRole: "ADMIN" | "MANAGER" | "EMPLOYEE" }) =>
+    api.post("/employees/roles", data),
   getAllManagers: () => api.get("/employees/managers"),
+  uploadDocument: (documentType: "pan-card" | "aadhaar-card", image: string) =>
+    api.post("/employees/documents", { documentType, image }),
+  getDocumentUrl: (id: string, documentType: "pan-card" | "aadhaar-card") =>
+    api.get(`/employees/${id}/documents/${documentType}`),
 };
 
 
@@ -267,4 +275,3 @@ export const productivityAPI = {
 };
 
 export default api;
-

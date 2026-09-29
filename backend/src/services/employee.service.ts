@@ -11,6 +11,9 @@ import Payroll from "../models/Payroll";
 import Leave from "../models/Leave";
 import Attendance from "../models/Attendance";
 import Subtask from "../models/Subtask";
+import CustomRole from "../models/CustomRole";
+import Department from "../models/Department";
+import { EMPLOYEE_DOCUMENT_PREFIX, getEmployeeDocumentUrl as getSignedDocumentUrl } from "../config/r2";
 
 /**
  * Employee Service
@@ -39,6 +42,7 @@ interface CreateEmployeeData {
   fullName: string;
   username?: string; // Added from schema
   role: UserRole;
+  roleName?: string | null;
   employeeType?: EmployeeType | string;
   designation?: string | null;
   department?: string | null;
@@ -48,6 +52,8 @@ interface CreateEmployeeData {
   emergencyContact?: string | null;
   dateOfBirth?: Date | null;
   joinDate?: Date | null;
+  panCardKey?: string | null;
+  aadhaarCardKey?: string | null;
   managerId?: string | null;
   hourlyRate?: number | null;
   salary?: number | null; // Added from schema
@@ -155,7 +161,7 @@ export const getAllEmployees = async (
   // Fetch employees with pagination
   const [employees, total, managersCount, activeCount] = await Promise.all([
     User.find(where)
-      .select("id email fullName role employeeType designation department phone joinDate monthlySalary hourlyRate overtimeMultiplier isActive managerId createdAt")
+      .select("id email fullName role roleName employeeType designation department phone joinDate monthlySalary hourlyRate overtimeMultiplier isActive managerId createdAt")
       .populate("manager", "id fullName email")
       .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
       .skip(skip)
@@ -193,7 +199,7 @@ export const getEmployeeById = async (
   requestingUserUserRole: UserRole
 ) => {
   const employee = await User.findById(id)
-    .select("id email fullName role employeeType designation department phone address emergencyContact dateOfBirth joinDate monthlySalary hourlyRate overtimeMultiplier isActive managerId createdAt updatedAt")
+    .select("id email fullName role roleName employeeType designation department phone address emergencyContact dateOfBirth joinDate monthlySalary hourlyRate overtimeMultiplier isActive managerId panCardKey aadhaarCardKey createdAt updatedAt")
     .populate("manager", "id fullName email designation");
 
   if (!employee) {
@@ -233,6 +239,23 @@ export const createEmployee = async (
     throw new Error("Email already exists");
   }
 
+  // Custom roles grant the access level of their base role
+  let roleName: string | undefined;
+  if (data.roleName && data.roleName.trim() !== "") {
+    const customRole = await CustomRole.findOne({ name: data.roleName.trim() }).collation({ locale: "en", strength: 2 });
+    if (!customRole) {
+      throw new Error("Selected role not found");
+    }
+    data.role = customRole.baseRole;
+    roleName = customRole.name;
+  }
+
+  for (const key of [data.panCardKey, data.aadhaarCardKey]) {
+    if (key && !key.startsWith(EMPLOYEE_DOCUMENT_PREFIX)) {
+      throw new Error("Invalid document reference");
+    }
+  }
+
   // Validate manager assignment
   if (requestingUserUserRole === "MANAGER") {
     // Managers can only assign themselves as manager
@@ -265,6 +288,7 @@ export const createEmployee = async (
     password: data.password,
     fullName: data.fullName,
     role: data.role,
+    roleName,
     employeeType: (data.employeeType as any) || EmployeeType.FULL_TIME,
     employeeId: newId.toString(),
     designation: data.designation || undefined,
@@ -278,6 +302,8 @@ export const createEmployee = async (
     monthlySalary: data.monthlySalary || undefined,
     hourlyRate: data.monthlySalary ? (data.monthlySalary / 270) : (data.hourlyRate || 0),
     overtimeMultiplier: data.overtimeMultiplier || undefined,
+    panCardKey: data.panCardKey || undefined,
+    aadhaarCardKey: data.aadhaarCardKey || undefined,
     isActive: data.isActive !== undefined ? data.isActive : true,
   });
 
@@ -379,8 +405,9 @@ export const updateEmployee = async (
   if (data.fullName !== undefined && data.fullName.trim() !== "") {
     existingEmployee.fullName = data.fullName.trim();
   }
-  if (data.role !== undefined) {
+  if (data.role !== undefined && data.role !== existingEmployee.role) {
     existingEmployee.role = data.role;
+    existingEmployee.roleName = null;
   }
   if (data.isActive !== undefined) {
     existingEmployee.isActive = Boolean(data.isActive);
@@ -401,7 +428,7 @@ export const updateEmployee = async (
   await existingEmployee.save();
 
   return await User.findById(id)
-    .select("id email fullName role employeeType designation department phone address emergencyContact dateOfBirth joinDate monthlySalary hourlyRate overtimeMultiplier isActive managerId updatedAt")
+    .select("id email fullName role roleName employeeType designation department phone address emergencyContact dateOfBirth joinDate monthlySalary hourlyRate overtimeMultiplier isActive managerId updatedAt")
     .populate("manager", "id fullName email");
 };
 
@@ -458,11 +485,93 @@ export const getEmployeesByManager = async (managerId: string) => {
  */
 // Get all departments (unique)
 export const getAllDepartments = async () => {
-  const departments = await User.distinct("department", {
-    department: { $ne: null },
-  });
+  const [userDepartments, savedDepartments] = await Promise.all([
+    User.distinct("department", { department: { $ne: null } }),
+    Department.find().select("name"),
+  ]);
 
-  return departments.filter((d): d is string => d !== null).sort();
+  const names = [
+    ...userDepartments.filter((d): d is string => !!d),
+    ...savedDepartments.map((d) => d.name),
+  ];
+
+  return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
+};
+
+const BUILT_IN_ROLE_NAMES = ["admin", "manager", "employee"];
+
+function normalizeOptionName(name: string) {
+  const trimmed = name.trim().replace(/\s+/g, " ");
+  if (trimmed.length < 2 || trimmed.length > 50) {
+    throw new Error("Name must be between 2 and 50 characters");
+  }
+  return trimmed;
+}
+
+function isDuplicateKeyError(error: any) {
+  return error?.code === 11000;
+}
+
+// Get all custom roles
+export const getAllCustomRoles = async () => {
+  return CustomRole.find().select("id name baseRole").sort({ name: 1 });
+};
+
+// Create custom role
+export const createCustomRole = async (
+  name: string,
+  baseRole: UserRole,
+  requestingUserId: string,
+  requestingUserUserRole: UserRole
+) => {
+  const roleName = normalizeOptionName(name);
+
+  if (BUILT_IN_ROLE_NAMES.includes(roleName.toLowerCase())) {
+    throw new Error("This role already exists");
+  }
+  if (requestingUserUserRole === "MANAGER" && baseRole === UserRole.ADMIN) {
+    throw new Error("Access denied: Managers cannot create roles with Admin access");
+  }
+
+  try {
+    return await CustomRole.create({ name: roleName, baseRole, createdBy: requestingUserId });
+  } catch (error: any) {
+    if (isDuplicateKeyError(error)) {
+      throw new Error("This role already exists");
+    }
+    throw error;
+  }
+};
+
+// Create department
+export const createDepartment = async (name: string, requestingUserId: string) => {
+  const departmentName = normalizeOptionName(name);
+
+  try {
+    return await Department.create({ name: departmentName, createdBy: requestingUserId });
+  } catch (error: any) {
+    if (isDuplicateKeyError(error)) {
+      throw new Error("This department already exists");
+    }
+    throw error;
+  }
+};
+
+// Get a short-lived URL for an employee's PAN or Aadhaar image
+export const getEmployeeDocumentUrl = async (
+  id: string,
+  documentType: "pan-card" | "aadhaar-card",
+  requestingUserId: string,
+  requestingUserUserRole: UserRole
+) => {
+  const employee = await getEmployeeById(id, requestingUserId, requestingUserUserRole);
+  const key = documentType === "pan-card" ? employee.panCardKey : employee.aadhaarCardKey;
+
+  if (!key) {
+    throw new Error("Document not uploaded");
+  }
+
+  return { url: await getSignedDocumentUrl(key) };
 };
 
 // Get all managers

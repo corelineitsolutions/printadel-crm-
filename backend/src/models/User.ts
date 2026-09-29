@@ -18,6 +18,7 @@ export interface IUser extends Document {
   password: string;
   fullName: string;
   role: UserRole;
+  roleName?: string | null;
   employeeType: EmployeeType;
   employeeId?: string | null;
   designation?: string | null;
@@ -32,6 +33,8 @@ export interface IUser extends Document {
   isActive: boolean;
   emergencyContact?: string | null;
   dateOfBirth?: Date | null;
+  panCardKey?: string | null;
+  aadhaarCardKey?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -42,6 +45,7 @@ const UserSchema = new Schema<IUser>(
     password: { type: String, required: true },
     fullName: { type: String, required: true },
     role: { type: String, enum: Object.values(UserRole), default: UserRole.EMPLOYEE },
+    roleName: String,
     employeeType: { type: String, enum: Object.values(EmployeeType), default: EmployeeType.FULL_TIME },
     employeeId: { type: String, unique: true, sparse: true },
     designation: String,
@@ -56,6 +60,8 @@ const UserSchema = new Schema<IUser>(
     isActive: { type: Boolean, default: true },
     emergencyContact: String,
     dateOfBirth: Date,
+    panCardKey: String,
+    aadhaarCardKey: String,
   },
   { timestamps: true }
 );

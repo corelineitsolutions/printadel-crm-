@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { z } from "zod";
 import { successResponse, errorResponse } from "../utils/response.utils";
 import * as employeeService from "../services/employee.service";
+import { uploadEmployeeDocument as uploadDocumentToR2 } from "../config/r2";
 
 /**
  * Employee Controller
@@ -16,15 +17,35 @@ const createEmployeeSchema = z.object({
   fullName: z.string().min(2),
   phoneNumber: z.string().optional(),
   role: z.enum(["ADMIN", "MANAGER", "EMPLOYEE"]),
+  roleName: z.string().nullable().optional(),
   employeeType: z.enum(["Full-time", "Part-time", "Contract"]).optional(),
   designation: z.string().nullable().optional(),
   department: z.string().nullable().optional(),
   managerId: z.string().nullable().optional(),
+  address: z.string().nullable().optional(),
   salary: z.number().nullable().optional(),
   monthlySalary: z.number().nullable().optional(),
   hourlyRate: z.number().nullable().optional(),
   overtimeMultiplier: z.number().nullable().optional(),
   allowWorkFromHome: z.boolean().nullable().optional(),
+  panCardKey: z.string().nullable().optional(),
+  aadhaarCardKey: z.string().nullable().optional(),
+});
+
+const createCustomRoleSchema = z.object({
+  name: z.string().min(2).max(50),
+  baseRole: z.enum(["ADMIN", "MANAGER", "EMPLOYEE"]).default("EMPLOYEE"),
+});
+
+const createDepartmentSchema = z.object({
+  name: z.string().min(2).max(50),
+});
+
+const documentTypeSchema = z.enum(["pan-card", "aadhaar-card"]);
+
+const uploadDocumentSchema = z.object({
+  documentType: documentTypeSchema,
+  image: z.string().min(1),
 });
 
 const updateEmployeeSchema = z.object({
@@ -225,6 +246,86 @@ export async function getAllDepartments(_req: Request, res: Response) {
   try {
     const departments = await employeeService.getAllDepartments();
     return successResponse(res, departments, "Departments retrieved successfully");
+  } catch (error: any) {
+    return errorResponse(res, error.message, 400);
+  }
+}
+
+/**
+ * POST /api/employees/departments
+ * Add a department option
+ */
+export async function createDepartment(req: Request, res: Response) {
+  try {
+    const { name } = createDepartmentSchema.parse(req.body);
+    const department = await employeeService.createDepartment(name, req.user!.id);
+    return successResponse(res, department, "Department added successfully", 201);
+  } catch (error: any) {
+    return errorResponse(res, error.message, 400);
+  }
+}
+
+/**
+ * GET /api/employees/roles
+ * Get custom roles
+ */
+export async function getAllCustomRoles(_req: Request, res: Response) {
+  try {
+    const roles = await employeeService.getAllCustomRoles();
+    return successResponse(res, roles, "Roles retrieved successfully");
+  } catch (error: any) {
+    return errorResponse(res, error.message, 400);
+  }
+}
+
+/**
+ * POST /api/employees/roles
+ * Add a custom role
+ */
+export async function createCustomRole(req: Request, res: Response) {
+  try {
+    const { name, baseRole } = createCustomRoleSchema.parse(req.body);
+    const role = await employeeService.createCustomRole(
+      name,
+      baseRole as any,
+      req.user!.id,
+      req.user!.role
+    );
+    return successResponse(res, role, "Role added successfully", 201);
+  } catch (error: any) {
+    return errorResponse(res, error.message, 400);
+  }
+}
+
+/**
+ * POST /api/employees/documents
+ * Upload a PAN / Aadhaar image to R2
+ */
+export async function uploadEmployeeDocument(req: Request, res: Response) {
+  try {
+    const { documentType, image } = uploadDocumentSchema.parse(req.body);
+    const key = await uploadDocumentToR2(documentType, image);
+    return successResponse(res, { key }, "Document uploaded successfully", 201);
+  } catch (error: any) {
+    return errorResponse(res, error.message, 400);
+  }
+}
+
+/**
+ * GET /api/employees/:id/documents/:documentType
+ * Get a short-lived URL to view a PAN / Aadhaar image
+ */
+export async function getEmployeeDocumentUrl(req: Request, res: Response) {
+  try {
+    const id = req.params.id as string;
+    const documentType = documentTypeSchema.parse(req.params.documentType);
+    const result = await employeeService.getEmployeeDocumentUrl(
+      id,
+      documentType,
+      req.user!.id,
+      req.user!.role
+    );
+    return successResponse(res, result, "Document URL generated");
   } catch (error: any) {
     return errorResponse(res, error.message, 400);
   }
