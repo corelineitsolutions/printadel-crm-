@@ -48,7 +48,17 @@ function isAllowedOrigin(origin?: string) {
 }
 
 app.use((req, res, next) => {
+  res.setHeader("X-Backend", `printadel-crm-backend pid=${process.pid}`);
+
   const origin = req.headers.origin;
+  if (req.method === "OPTIONS" || req.path === "/api/auth/login") {
+    console.log(
+      `[cors] ${req.method} ${req.path} origin=${origin || "-"} allowed=${
+        typeof origin === "string" ? isAllowedOrigin(origin) : "no-origin"
+      }`
+    );
+  }
+
   if (typeof origin === "string" && isAllowedOrigin(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");

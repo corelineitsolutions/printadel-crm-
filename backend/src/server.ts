@@ -35,7 +35,7 @@ async function startServer() {
 
     // Start server
     const server = httpServer.listen(Number(PORT), HOST, () => {
-      console.log(`\n✅ Server running on ${HOST}:${PORT}`);
+      console.log(`\n✅ Server running on ${HOST}:${PORT} (pid ${process.pid}, cwd ${process.cwd()})`);
       console.log(`🌐 API URL: http://localhost:${PORT}`);
       console.log(`📚 Health Check: http://localhost:${PORT}/api/health`);
       console.log(`📅 Environment: ${process.env.NODE_ENV || "development"}\n`);
