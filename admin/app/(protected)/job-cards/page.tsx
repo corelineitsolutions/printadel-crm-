@@ -212,7 +212,9 @@ export default function JobCardsPage() {
 
   const projects = projectsData?.data?.projects || [];
   const employees = employeesData?.data?.employees || [];
-  const jobCards = jobCardsData?.data || [];
+  const jobCards = Array.isArray(jobCardsData?.data?.jobCards)
+    ? jobCardsData.data.jobCards
+    : [];
   const stats = statsData?.data || {};
 
   // Create mutation

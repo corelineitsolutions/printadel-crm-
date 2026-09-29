@@ -416,7 +416,7 @@ export default function NewEmployeePage() {
                       <SelectValue placeholder="Select department" />
                     </SelectTrigger>
                     <SelectContent>
-                      {Array.from(new Set([...departments, "Engineering", "Design", "Marketing", "Sales", "HR"])).filter(d => !!d).map((dept: string) => (
+                      {Array.from(new Set([...departments, "Marketing", "Sales", "HR"])).filter(d => !!d).map((dept: string) => (
                         <SelectItem key={dept} value={dept}>
                           {dept}
                         </SelectItem>

@@ -1,20 +1,27 @@
+const path = require("path");
+
+/**
+ * Backend-only PM2 config. Prefer the repo-root ecosystem.config.js,
+ * which also starts printadel-crm-admin.
+ * Env is loaded from backend/.env.
+ */
 module.exports = {
-    apps: [
-        {
-            name: 'coreline-crm-backend',
-            script: 'dist/server.js',
-            instances: 1, // Change to 'max' if you want to run exactly the number of CPU cores
-            autorestart: true,
-            watch: false, // Don't watch files in production
-            max_memory_restart: '1G',
-            env: {
-                NODE_ENV: 'development',
-                PORT: 7834, // User-defined port
-            },
-            env_production: {
-                NODE_ENV: 'production',
-                PORT: 7834, // User-defined port
-            }
-        }
-    ]
+  apps: [
+    {
+      name: "printadel-crm-backend",
+      cwd: __dirname,
+      script: "dist/server.js",
+      interpreter: "node",
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: "1G",
+      env_file: path.join(__dirname, ".env"),
+      env: {
+        NODE_ENV: "production",
+        PORT: "7834",
+        HOST: "0.0.0.0",
+      },
+    },
+  ],
 };

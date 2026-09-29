@@ -180,21 +180,39 @@ export default function ProductivityPage() {
     });
   };
 
-  const employees = employeesData?.data?.employees || [];
-  const jobCards = jobCardsData?.data || [];
-  const activityTypes = activityTypesData?.data || [
-    "Printing",
-    "Design / Pre-press",
-    "Cutting & Finishing",
-    "Binding",
-    "Packaging",
-    "Delivery / Dispatch",
-    "Machine Maintenance",
-    "Help / Support",
-    "Other",
-  ];
-  const logs = logsData?.data || [];
-  const stats = statsData?.data || { totalHours: 0, totalSessions: 0, activityBreakdown: [] };
+  const employees = Array.isArray(employeesData?.data?.employees)
+    ? employeesData.data.employees
+    : [];
+  const jobCards = Array.isArray(jobCardsData?.data?.jobCards)
+    ? jobCardsData.data.jobCards
+    : [];
+  const activityTypes = Array.isArray(activityTypesData?.data)
+    ? activityTypesData.data
+    : [
+        "Printing",
+        "Design / Pre-press",
+        "Cutting & Finishing",
+        "Binding",
+        "Packaging",
+        "Delivery / Dispatch",
+        "Machine Maintenance",
+        "Help / Support",
+        "Other",
+      ];
+  const logs = Array.isArray(logsData?.data?.logs) ? logsData.data.logs : [];
+  const rawStats = statsData?.data || {};
+  const activityBreakdown = Array.isArray(rawStats.byActivity)
+    ? rawStats.byActivity.map((item: any) => ({
+        activityType: item.activityType || item._id,
+        totalHours: Math.round((item.totalHours || 0) * 100) / 100,
+        count: item.count || 0,
+      }))
+    : [];
+  const stats = {
+    totalHours: rawStats.totalHours || 0,
+    totalSessions: rawStats.totalLogs || 0,
+    activityBreakdown,
+  };
 
   return (
     <div className="space-y-6">
