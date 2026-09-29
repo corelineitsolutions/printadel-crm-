@@ -1,5 +1,4 @@
 import express, { Express } from "express";
-import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
 import routes from "./routes";
@@ -37,21 +36,34 @@ const envCorsOrigins = (process.env.CORS_ORIGIN || "")
 
 const corsOrigins = new Set([...defaultCorsOrigins, ...envCorsOrigins]);
 
-app.use(
-  cors({
-    origin(origin, callback) {
-      if (!origin || corsOrigins.has(origin)) {
-        callback(null, true);
-        return;
-      }
-      callback(null, false);
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    optionsSuccessStatus: 204,
-  })
-);
+function isAllowedOrigin(origin?: string) {
+  if (!origin) return true;
+  if (corsOrigins.has(origin)) return true;
+  try {
+    const host = new URL(origin).hostname;
+    return host === "printadel.in" || host.endsWith(".printadel.in");
+  } catch {
+    return false;
+  }
+}
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (typeof origin === "string" && isAllowedOrigin(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,PATCH,OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  }
+
+  if (req.method === "OPTIONS") {
+    res.status(204).end();
+    return;
+  }
+
+  next();
+});
 
 /**
  * Body Parser Middleware

@@ -12,10 +12,11 @@ import { generateToken, JWTPayload } from "../utils/jwt.utils";
  * Authenticates user and returns JWT token
  */
 export async function loginUser(email: string, password: string) {
-  // Find user by email
-  const user = await User.findOne({ email });
-  
+  const normalizedEmail = email.trim().toLowerCase();
+  const user = await User.findOne({ email: normalizedEmail });
+
   if (!user) {
+    console.warn(`Login failed: no user for ${normalizedEmail}`);
     throw new Error("Invalid email or password");
   }
   
@@ -28,6 +29,7 @@ export async function loginUser(email: string, password: string) {
   const isPasswordValid = await comparePassword(password, user.password);
   
   if (!isPasswordValid) {
+    console.warn(`Login failed: wrong password for ${normalizedEmail}`);
     throw new Error("Invalid email or password");
   }
   
