@@ -19,18 +19,37 @@ const app: Express = express();
 
 /**
  * CORS Configuration
+ * Admin (crmadmin) calls the API on crmbackend, so that origin must always be allowed.
+ * Quoted values from .env / PM2 are stripped so "https://..." still matches.
  */
-const corsOrigins = (process.env.CORS_ORIGIN || "http://localhost:3000")
+const defaultCorsOrigins = [
+  "http://localhost:3000",
+  "http://localhost:7833",
+  "http://crmadmin.printadel.in",
+  "https://crmadmin.printadel.in",
+];
+
+const envCorsOrigins = (process.env.CORS_ORIGIN || "")
+  .replace(/^["']|["']$/g, "")
   .split(",")
-  .map((origin) => origin.trim())
+  .map((origin) => origin.trim().replace(/^["']|["']$/g, ""))
   .filter(Boolean);
+
+const corsOrigins = new Set([...defaultCorsOrigins, ...envCorsOrigins]);
 
 app.use(
   cors({
-    origin: corsOrigins,
+    origin(origin, callback) {
+      if (!origin || corsOrigins.has(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(null, false);
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
+    optionsSuccessStatus: 204,
   })
 );
 
