@@ -1,5 +1,8 @@
 import mongoose from "mongoose";
-import ProductivityLog from "../models/ProductivityLog";
+import ProductivityLog, {
+  HELP_SUPPORT_ACTIVITY,
+  MAX_HELP_SUPPORT_PER_LOGOUT,
+} from "../models/ProductivityLog";
 import JobCard from "../models/JobCard";
 import { getISTStartOfDay, getISTEndOfDay } from "../utils/date.utils";
 
@@ -8,6 +11,13 @@ export interface LogActivityInput {
   jobCardId?: string;
   activityType: string;
   durationMinutes?: number;
+  notes?: string;
+  isLogoutSession?: boolean;
+}
+
+export interface LogActivitiesBatchInput {
+  userId: string;
+  entries: { jobCardId?: string; activityType: string; durationMinutes?: number }[];
   notes?: string;
   isLogoutSession?: boolean;
 }
@@ -51,6 +61,51 @@ export const productivityService = {
     return await ProductivityLog.findById(log._id)
       .populate("userId", "id fullName email designation department")
       .populate("jobCardId", "id jobCardNumber title clientName status");
+  },
+
+  /**
+   * Log several job card activities at once (logout modal)
+   */
+  async logActivitiesBatch(data: LogActivitiesBatchInput) {
+    if (!data.entries.length) {
+      throw new Error("Select at least one job card or general work");
+    }
+
+    const seenJobCards = new Set<string>();
+    for (const entry of data.entries) {
+      const key = entry.jobCardId && entry.jobCardId !== "none" ? entry.jobCardId : "general";
+      if (seenJobCards.has(key)) {
+        throw new Error("Each job card can only be selected once");
+      }
+      seenJobCards.add(key);
+      if (key !== "general" && !mongoose.Types.ObjectId.isValid(key)) {
+        throw new Error("Invalid job card selected");
+      }
+    }
+
+    const helpSupportCount = data.entries.filter(
+      (e) => e.activityType === HELP_SUPPORT_ACTIVITY
+    ).length;
+    if (helpSupportCount > MAX_HELP_SUPPORT_PER_LOGOUT) {
+      throw new Error(
+        `"${HELP_SUPPORT_ACTIVITY}" can be selected for at most ${MAX_HELP_SUPPORT_PER_LOGOUT} job cards`
+      );
+    }
+
+    const logs = [];
+    for (const entry of data.entries) {
+      logs.push(
+        await this.logActivity({
+          userId: data.userId,
+          jobCardId: entry.jobCardId,
+          activityType: entry.activityType,
+          durationMinutes: entry.durationMinutes,
+          notes: data.notes,
+          isLogoutSession: data.isLogoutSession,
+        })
+      );
+    }
+    return logs;
   },
 
   /**

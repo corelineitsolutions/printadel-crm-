@@ -90,6 +90,13 @@ async function generateNextJobCardNumber(): Promise<string> {
 
 export const jobCardService = {
   /**
+   * Preview the number the next created Job Card will receive
+   */
+  async getNextJobCardNumber() {
+    return { jobCardNumber: await generateNextJobCardNumber() };
+  },
+
+  /**
    * Create a new Job Card
    */
   async createJobCard(data: CreateJobCardData, userId: string) {

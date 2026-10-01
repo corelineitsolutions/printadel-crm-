@@ -283,155 +283,168 @@ export default function EmployeesPage() {
         </Card>
       ) : (
         <>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {employees.map((employee: any) => (
-              <Card
-                key={employee.id}
-                className="hover:shadow-lg transition-shadow cursor-pointer"
-              >
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                        <span className="text-lg font-semibold text-primary">
-                          {employee.fullName?.charAt(0) || "?"}
-                        </span>
-                      </div>
-                      <div>
-                        <h3 className="font-semibold">{employee.fullName}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {employee.employeeId}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <Badge
-                        variant={
-                          employee.role === "ADMIN"
-                            ? "destructive"
-                            : employee.role === "MANAGER"
-                              ? "default"
-                              : "secondary"
-                        }
-                      >
-                        {employee.roleName || employee.role}
-                      </Badge>
-                      {employee.employeeType && (
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] font-semibold ${
-                            employee.employeeType === "Full-time"
-                              ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                              : employee.employeeType === "Part-time"
-                              ? "bg-purple-50 text-purple-700 border-purple-200"
-                              : "bg-amber-50 text-amber-700 border-amber-200"
-                          }`}
-                        >
-                          {employee.employeeType}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    {employee.designation && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <Briefcase className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">
-                          {employee.designation}
-                        </span>
-                      </div>
-                    )}
-                    {employee.department && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <MapPin className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">
-                          {employee.department}
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2 text-sm">
-                      <Mail className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-muted-foreground truncate">
-                        {employee.email}
-                      </span>
-                    </div>
-                    {employee.phoneNumber && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <Phone className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">
-                          {employee.phoneNumber}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mt-4 pt-4 border-t">
-                    <div className="flex items-center justify-between mb-3">
-                      <span
-                        className={`text-xs px-2 py-1 rounded-full ${employee.isActive
-                          ? "bg-green-100 text-green-800"
-                          : "bg-red-100 text-red-800"
-                          }`}
-                      >
-                        {employee.isActive ? "Active" : "Inactive"}
-                      </span>
-                      {employee.manager && (
-                        <span className="text-xs text-muted-foreground truncate max-w-[150px]">
-                          Reports to: {employee.manager.fullName}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Action Buttons */}
+          <Card className="overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 border-b">
+                  <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
+                    <th className="px-4 py-3 font-semibold">Employee</th>
+                    <th className="px-4 py-3 font-semibold">Role</th>
+                    <th className="px-4 py-3 font-semibold">Designation / Department</th>
+                    <th className="px-4 py-3 font-semibold">Office</th>
+                    <th className="px-4 py-3 font-semibold">Phone</th>
+                    <th className="px-4 py-3 font-semibold">Manager</th>
+                    <th className="px-4 py-3 font-semibold">Status</th>
                     {canManageEmployees && (
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1 gap-2"
-                          onClick={() => router.push(`/employees/edit/${employee.id}`)}
-                        >
-                          <Edit className="w-4 h-4" />
-                          Edit
-                        </Button>
-                        <Button
-                          variant={employee.isActive ? "secondary" : "default"}
-                          size="sm"
-                          className="flex-1 gap-2"
-                          onClick={() => toggleStatusMutation.mutate(employee.id)}
-                          disabled={toggleStatusMutation.isPending}
-                        >
-                          {employee.isActive ? (
-                            <>
-                              <ToggleLeft className="w-4 h-4" />
-                              Deactivate
-                            </>
-                          ) : (
-                            <>
-                              <ToggleRight className="w-4 h-4" />
-                              Activate
-                            </>
-                          )}
-                        </Button>
-                        {isAdmin && (
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            className="gap-2"
-                            onClick={() => setDeleteConfirm(employee.id)}
-                            disabled={deleteMutation.isPending}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        )}
-                      </div>
+                      <th className="px-4 py-3 font-semibold text-right">Actions</th>
                     )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {employees.map((employee: any) => {
+                    const phone = employee.phone || employee.phoneNumber;
+                    return (
+                      <tr key={employee.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="px-4 py-3 min-w-[220px]">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                              <span className="text-sm font-semibold text-primary">
+                                {employee.fullName?.charAt(0) || "?"}
+                              </span>
+                            </div>
+                            <div className="min-w-0">
+                              <div className="font-semibold truncate">{employee.fullName}</div>
+                              <div className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                                <Mail className="w-3 h-3" />
+                                {employee.email}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-col items-start gap-1">
+                            <Badge
+                              variant={
+                                employee.role === "ADMIN"
+                                  ? "destructive"
+                                  : employee.role === "MANAGER"
+                                    ? "default"
+                                    : "secondary"
+                              }
+                            >
+                              {employee.roleName || employee.role}
+                            </Badge>
+                            {employee.employeeType && (
+                              <Badge
+                                variant="outline"
+                                className={`text-[10px] font-semibold ${
+                                  employee.employeeType === "Full-time"
+                                    ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                                    : employee.employeeType === "Part-time"
+                                    ? "bg-purple-50 text-purple-700 border-purple-200"
+                                    : "bg-amber-50 text-amber-700 border-amber-200"
+                                }`}
+                              >
+                                {employee.employeeType}
+                              </Badge>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 min-w-[160px]">
+                          <div className="flex items-center gap-1.5">
+                            <Briefcase className="w-3.5 h-3.5 text-muted-foreground" />
+                            <span>{employee.designation || "-"}</span>
+                          </div>
+                          {employee.department && (
+                            <div className="text-xs text-muted-foreground mt-0.5">
+                              {employee.department}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {employee.office?.name ? (
+                            <span className="inline-flex items-center gap-1">
+                              <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+                              {employee.office.name}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {phone ? (
+                            <span className="inline-flex items-center gap-1">
+                              <Phone className="w-3.5 h-3.5 text-muted-foreground" />
+                              {phone}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {employee.manager?.fullName || (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${
+                              employee.isActive
+                                ? "bg-green-100 text-green-800"
+                                : "bg-red-100 text-red-800"
+                            }`}
+                          >
+                            {employee.isActive ? "Active" : "Inactive"}
+                          </span>
+                        </td>
+                        {canManageEmployees && (
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 gap-1.5 text-xs"
+                                onClick={() => router.push(`/employees/edit/${employee.id}`)}
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                                Edit
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                title={employee.isActive ? "Deactivate" : "Activate"}
+                                onClick={() => toggleStatusMutation.mutate(employee.id)}
+                                disabled={toggleStatusMutation.isPending}
+                              >
+                                {employee.isActive ? (
+                                  <ToggleRight className="w-4 h-4 text-green-600" />
+                                ) : (
+                                  <ToggleLeft className="w-4 h-4 text-muted-foreground" />
+                                )}
+                              </Button>
+                              {isAdmin && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-rose-500 hover:text-rose-700 hover:bg-rose-50"
+                                  title="Delete"
+                                  onClick={() => setDeleteConfirm(employee.id)}
+                                  disabled={deleteMutation.isPending}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
 
           {/* Pagination */}
           {pagination.totalPages > 1 && (

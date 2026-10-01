@@ -134,7 +134,7 @@ export default function JobCardsPage() {
   const [selectedTab, setSelectedTab] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedAssigneeFilter, setSelectedAssigneeFilter] = useState<string>("all");
-  const [viewingJobCard, setViewingJobCard] = useState<any | null>(null);
+  const [viewingJobCardRow, setViewingJobCardRow] = useState<any | null>(null);
 
   // Status transition state
   const [statusDialogCard, setStatusDialogCard] = useState<any | null>(null);
@@ -210,6 +210,29 @@ export default function JobCardsPage() {
     },
   });
 
+  const { data: nextNumberData, isFetching: isNextNumberLoading } = useQuery({
+    queryKey: ["nextJobCardNumber"],
+    queryFn: async () => {
+      const res = await jobCardAPI.getNextJobCardNumber();
+      return res.data;
+    },
+    enabled: showCreateDialog && isPrivileged,
+    staleTime: 0,
+  });
+  const nextJobCardNumber: string | undefined = nextNumberData?.data?.jobCardNumber;
+
+  const viewingJobCardId = viewingJobCardRow ? viewingJobCardRow._id || viewingJobCardRow.id : null;
+  const { data: jobCardDetailData, isFetching: isDetailLoading } = useQuery({
+    queryKey: ["jobCardDetail", viewingJobCardId],
+    queryFn: async () => {
+      const res = await jobCardAPI.getJobCardById(viewingJobCardId);
+      return res.data;
+    },
+    enabled: !!viewingJobCardId,
+  });
+  const viewingJobCard = jobCardDetailData?.data || viewingJobCardRow;
+  const setViewingJobCard = setViewingJobCardRow;
+
   const projects = projectsData?.data?.projects || [];
   const employees = employeesData?.data?.employees || [];
   const jobCards = Array.isArray(jobCardsData?.data?.jobCards)
@@ -220,8 +243,10 @@ export default function JobCardsPage() {
   // Create mutation
   const createJobCardMutation = useMutation({
     mutationFn: (data: JobCardFormData) => {
+      const { specialInstructions, ...rest } = data;
       const payload: any = {
-        ...data,
+        ...rest,
+        specifications: specialInstructions || undefined,
         quantity: parseInt(data.quantity, 10) || 1,
         estimatedHours: data.estimatedHours ? parseFloat(data.estimatedHours) : undefined,
         targetDeliveryDate: data.targetDeliveryDate || undefined,
@@ -229,10 +254,14 @@ export default function JobCardsPage() {
       };
       return jobCardAPI.createJobCard(payload);
     },
-    onSuccess: () => {
-      toast.success("Job Card created successfully!");
+    onSuccess: (res: any) => {
+      const createdNumber = res?.data?.data?.jobCardNumber;
+      toast.success(
+        createdNumber ? `Job Card ${createdNumber} created successfully!` : "Job Card created successfully!"
+      );
       queryClient.invalidateQueries({ queryKey: ["jobCards"] });
       queryClient.invalidateQueries({ queryKey: ["jobCardStats"] });
+      queryClient.invalidateQueries({ queryKey: ["nextJobCardNumber"] });
       setShowCreateDialog(false);
       reset();
     },
@@ -249,6 +278,7 @@ export default function JobCardsPage() {
       toast.success("Job Card status updated!");
       queryClient.invalidateQueries({ queryKey: ["jobCards"] });
       queryClient.invalidateQueries({ queryKey: ["jobCardStats"] });
+      queryClient.invalidateQueries({ queryKey: ["jobCardDetail"] });
       setStatusDialogCard(null);
       setNextStatus("");
       setStatusNote("");
@@ -463,165 +493,125 @@ export default function JobCardsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {jobCards.map((card: any) => {
-            const cardId = card._id || card.id;
-            const statusConfig = STATUS_CONFIG[card.status] || STATUS_CONFIG.PENDING;
-            const priorityConfig = PRIORITY_CONFIG[card.priority] || PRIORITY_CONFIG.MEDIUM;
-            const StatusIcon = statusConfig.icon;
+        <Card className="border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 border-b">
+                <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+                  <th className="px-4 py-3 font-semibold">Job Card #</th>
+                  <th className="px-4 py-3 font-semibold">Job Name</th>
+                  <th className="px-4 py-3 font-semibold">Client</th>
+                  <th className="px-4 py-3 font-semibold text-right">Qty</th>
+                  <th className="px-4 py-3 font-semibold">Priority</th>
+                  <th className="px-4 py-3 font-semibold">Status</th>
+                  <th className="px-4 py-3 font-semibold">Delivery</th>
+                  <th className="px-4 py-3 font-semibold text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {jobCards.map((card: any) => {
+                  const cardId = card._id || card.id;
+                  const priorityConfig = PRIORITY_CONFIG[card.priority] || PRIORITY_CONFIG.MEDIUM;
 
-            return (
-              <Card
-                key={cardId}
-                className="hover:shadow-lg transition-all duration-200 border-slate-200 flex flex-col justify-between overflow-hidden"
-              >
-                <div>
-                  {/* Card Header Bar */}
-                  <div className="p-4 border-b bg-slate-50/50 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="font-mono font-bold text-xs bg-white text-indigo-700 border-indigo-200">
-                        {card.jobCardNumber}
-                      </Badge>
-                      {card.orderNumber && (
-                        <span className="text-xs text-muted-foreground font-mono">
-                          {card.orderNumber}
-                        </span>
-                      )}
-                    </div>
-                    <Badge className={priorityConfig.badgeClass} variant="secondary">
-                      {priorityConfig.label}
-                    </Badge>
-                  </div>
-
-                  <CardContent className="p-5 space-y-4">
-                    {/* Title & Client */}
-                    <div>
-                      <h3 className="font-semibold text-base text-slate-900 line-clamp-1">
-                        {card.title}
-                      </h3>
-                      <p className="text-xs text-slate-600 mt-0.5 flex items-center gap-1.5">
-                        <User className="w-3.5 h-3.5 text-slate-400" />
-                        <span className="font-medium">{card.clientName}</span>
-                        {card.clientPhone && (
-                          <span className="text-muted-foreground">({card.clientPhone})</span>
+                  return (
+                    <tr key={cardId} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <Badge
+                          variant="outline"
+                          className="font-mono font-bold text-xs bg-white text-indigo-700 border-indigo-200"
+                        >
+                          {card.jobCardNumber}
+                        </Badge>
+                        {card.orderNumber && (
+                          <div className="text-[11px] text-muted-foreground font-mono mt-1">
+                            {card.orderNumber}
+                          </div>
                         )}
-                      </p>
-                    </div>
-
-                    {/* Print Specs Grid */}
-                    <div className="bg-slate-50 rounded-lg p-3 text-xs space-y-1.5 border border-slate-100">
-                      <div className="flex justify-between items-center text-slate-600">
-                        <span className="text-slate-400">Qty:</span>
-                        <span className="font-bold text-slate-800">{card.quantity?.toLocaleString()} pcs</span>
-                      </div>
-                      {card.paperStock && (
-                        <div className="flex justify-between items-center text-slate-600">
-                          <span className="text-slate-400">Paper:</span>
-                          <span className="font-medium text-slate-800 text-right truncate max-w-[180px]">
-                            {card.paperStock}
-                          </span>
-                        </div>
-                      )}
-                      {card.size && (
-                        <div className="flex justify-between items-center text-slate-600">
-                          <span className="text-slate-400">Size:</span>
-                          <span className="font-medium text-slate-800">{card.size}</span>
-                        </div>
-                      )}
-                      {card.finish && (
-                        <div className="flex justify-between items-center text-slate-600">
-                          <span className="text-slate-400">Finish:</span>
-                          <span className="font-medium text-slate-800 truncate max-w-[180px]">
-                            {card.finish}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Status Badge */}
-                    <div className="flex items-center justify-between pt-1">
-                      <Badge className={`px-2.5 py-1 flex items-center gap-1.5 border ${statusConfig.badgeClass}`}>
-                        <StatusIcon className="w-3.5 h-3.5" />
-                        {statusConfig.label}
-                      </Badge>
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Clock className="w-3.5 h-3.5" />
-                        <span>{card.actualHours || 0} hrs logged</span>
-                      </div>
-                    </div>
-
-                    {/* Assignees */}
-                    <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
-                      <div className="flex items-center gap-1.5">
-                        <Users className="w-3.5 h-3.5" />
-                        <span>
+                      </td>
+                      <td className="px-4 py-3 min-w-[200px]">
+                        <div className="font-semibold text-slate-900 line-clamp-1">{card.title}</div>
+                        <div className="text-xs text-muted-foreground line-clamp-1">
                           {card.assignedTo && card.assignedTo.length > 0
                             ? card.assignedTo.map((a: any) => a.fullName || a.name).join(", ")
                             : "Unassigned"}
-                        </span>
-                      </div>
-                      {card.targetDeliveryDate && (
-                        <div className="flex items-center gap-1 text-slate-600 font-medium">
-                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{format(new Date(card.targetDeliveryDate), "dd MMM")}</span>
                         </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </div>
-
-                {/* Footer Actions */}
-                <div className="p-3 bg-slate-50 border-t flex items-center justify-between gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs h-8 gap-1.5"
-                    onClick={() => setViewingJobCard(card)}
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                    Details
-                  </Button>
-
-                  {/* Status Transition Quick Actions */}
-                  <div className="flex items-center gap-1">
-                    <Select
-                      value={card.status}
-                      onValueChange={(val) => handleOpenStatusDialog(card, val)}
-                    >
-                      <SelectTrigger className="h-8 text-xs w-[140px] bg-white">
-                        <SelectValue placeholder="Change Status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="PENDING">Pending</SelectItem>
-                        <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
-                        <SelectItem value="PRINTING">Printing</SelectItem>
-                        <SelectItem value="QUALITY_CHECK">Quality Check</SelectItem>
-                        <SelectItem value="READY_FOR_DELIVERY">Ready for Delivery</SelectItem>
-                        <SelectItem value="COMPLETED">Completed</SelectItem>
-                        <SelectItem value="CANCELLED">Cancelled</SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    {isPrivileged && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-rose-500 hover:text-rose-700 hover:bg-rose-50"
-                        onClick={() => {
-                          if (confirm(`Delete Job Card ${card.jobCardNumber}?`)) {
-                            deleteMutation.mutate(cardId);
-                          }
-                        }}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
-        </div>
+                      </td>
+                      <td className="px-4 py-3 min-w-[160px]">
+                        <div className="font-medium text-slate-800">{card.clientName}</div>
+                        {card.clientPhone && (
+                          <div className="text-xs text-muted-foreground">{card.clientPhone}</div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold text-slate-800 whitespace-nowrap">
+                        {card.quantity?.toLocaleString() ?? "-"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge className={priorityConfig.badgeClass} variant="secondary">
+                          {priorityConfig.label}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Select
+                          value={card.status}
+                          onValueChange={(val) => handleOpenStatusDialog(card, val)}
+                        >
+                          <SelectTrigger
+                            className={`h-8 text-xs w-[150px] border ${
+                              (STATUS_CONFIG[card.status] || STATUS_CONFIG.PENDING).badgeClass
+                            }`}
+                          >
+                            <SelectValue placeholder="Change Status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="PENDING">Pending</SelectItem>
+                            <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+                            <SelectItem value="PRINTING">Printing</SelectItem>
+                            <SelectItem value="QUALITY_CHECK">Quality Check</SelectItem>
+                            <SelectItem value="READY_FOR_DELIVERY">Ready for Delivery</SelectItem>
+                            <SelectItem value="COMPLETED">Completed</SelectItem>
+                            <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-slate-700">
+                        {card.targetDeliveryDate
+                          ? format(new Date(card.targetDeliveryDate), "dd MMM yyyy")
+                          : "-"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs h-8 gap-1.5"
+                            onClick={() => setViewingJobCard(card)}
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            Details
+                          </Button>
+                          {isPrivileged && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-rose-500 hover:text-rose-700 hover:bg-rose-50"
+                              onClick={() => {
+                                if (confirm(`Delete Job Card ${card.jobCardNumber}?`)) {
+                                  deleteMutation.mutate(cardId);
+                                }
+                              }}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       )}
 
       {/* CREATE JOB CARD DIALOG */}
@@ -638,6 +628,20 @@ export default function JobCardsPage() {
           </DialogHeader>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-2">
+            <div className="flex items-center justify-between gap-3 p-3 rounded-xl border border-indigo-200 bg-indigo-50/60">
+              <div className="flex items-center gap-2 text-sm text-indigo-900">
+                <Hash className="w-4 h-4 text-indigo-600" />
+                <span className="font-medium">Job Card Number</span>
+              </div>
+              <div className="font-mono font-bold text-indigo-700 text-base">
+                {isNextNumberLoading && !nextJobCardNumber ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  nextJobCardNumber || "Auto-generated"
+                )}
+              </div>
+            </div>
+
             {/* Title & Order Number */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="md:col-span-2 space-y-1.5">
@@ -694,6 +698,16 @@ export default function JobCardsPage() {
                   placeholder="client@example.com"
                 />
               </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                {...register("description")}
+                placeholder="Short summary of the job"
+                rows={2}
+              />
             </div>
 
             {/* Project Connection */}
@@ -965,12 +979,21 @@ export default function JobCardsPage() {
                     </span>
                   )}
                 </div>
-                <Badge
-                  className={STATUS_CONFIG[viewingJobCard.status]?.badgeClass}
-                  variant="secondary"
-                >
-                  {STATUS_CONFIG[viewingJobCard.status]?.label}
-                </Badge>
+                <div className="flex items-center gap-2 mr-6">
+                  {isDetailLoading && <Loader2 className="w-4 h-4 animate-spin text-slate-400" />}
+                  <Badge
+                    className={(PRIORITY_CONFIG[viewingJobCard.priority] || PRIORITY_CONFIG.MEDIUM).badgeClass}
+                    variant="secondary"
+                  >
+                    {(PRIORITY_CONFIG[viewingJobCard.priority] || PRIORITY_CONFIG.MEDIUM).label}
+                  </Badge>
+                  <Badge
+                    className={STATUS_CONFIG[viewingJobCard.status]?.badgeClass}
+                    variant="secondary"
+                  >
+                    {STATUS_CONFIG[viewingJobCard.status]?.label}
+                  </Badge>
+                </div>
               </div>
               <DialogTitle className="text-xl font-bold mt-2">
                 {viewingJobCard.title}
@@ -978,6 +1001,47 @@ export default function JobCardsPage() {
             </DialogHeader>
 
             <div className="space-y-6 pt-3">
+              {/* General Info */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                <div>
+                  <span className="text-slate-400 block">Project</span>
+                  <span className="font-semibold text-slate-800">
+                    {viewingJobCard.projectId?.name || "Independent Job"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block">Created By</span>
+                  <span className="font-semibold text-slate-800">
+                    {viewingJobCard.assignedBy?.fullName || "-"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block">Created On</span>
+                  <span className="font-semibold text-slate-800">
+                    {viewingJobCard.createdAt
+                      ? format(new Date(viewingJobCard.createdAt), "dd MMM yyyy, HH:mm")
+                      : "-"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block">Last Updated</span>
+                  <span className="font-semibold text-slate-800">
+                    {viewingJobCard.updatedAt
+                      ? format(new Date(viewingJobCard.updatedAt), "dd MMM yyyy, HH:mm")
+                      : "-"}
+                  </span>
+                </div>
+              </div>
+
+              {viewingJobCard.description && (
+                <div className="text-sm">
+                  <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+                    Description
+                  </h4>
+                  <p className="text-slate-700 whitespace-pre-wrap">{viewingJobCard.description}</p>
+                </div>
+              )}
+
               {/* Client & Timeline */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-xl bg-slate-50 border">
                 <div>
@@ -1061,13 +1125,13 @@ export default function JobCardsPage() {
                   </div>
                 </div>
 
-                {viewingJobCard.specialInstructions && (
+                {(viewingJobCard.specifications || viewingJobCard.specialInstructions) && (
                   <div className="pt-2 border-t border-purple-100 text-xs">
                     <span className="font-semibold text-slate-700 block mb-1">
                       Press / Finishing Instructions:
                     </span>
-                    <p className="text-slate-600 bg-white p-2.5 rounded border border-purple-100">
-                      {viewingJobCard.specialInstructions}
+                    <p className="text-slate-600 bg-white p-2.5 rounded border border-purple-100 whitespace-pre-wrap">
+                      {viewingJobCard.specifications || viewingJobCard.specialInstructions}
                     </p>
                   </div>
                 )}
@@ -1107,6 +1171,28 @@ export default function JobCardsPage() {
                 </div>
               </div>
 
+              {Array.isArray(viewingJobCard.attachments) && viewingJobCard.attachments.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                    Attachments
+                  </h4>
+                  <ul className="space-y-1 text-xs">
+                    {viewingJobCard.attachments.map((url: string, idx: number) => (
+                      <li key={idx}>
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-indigo-600 hover:underline break-all"
+                        >
+                          {url}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {/* Status Audit History */}
               {viewingJobCard.statusHistory && viewingJobCard.statusHistory.length > 0 && (
                 <div>
@@ -1135,7 +1221,9 @@ export default function JobCardsPage() {
                           )}
                         </div>
                         <span className="text-[11px] text-slate-400">
-                          {format(new Date(sh.timestamp), "dd MMM, HH:mm")}
+                          {sh.changedAt || sh.timestamp
+                            ? format(new Date(sh.changedAt || sh.timestamp), "dd MMM, HH:mm")
+                            : ""}
                         </span>
                       </div>
                     ))}

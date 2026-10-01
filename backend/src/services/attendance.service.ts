@@ -84,6 +84,43 @@ async function validateLocation(location: Location): Promise<boolean> {
 }
 
 /**
+ * Employees with an assigned office must be within that office's radius.
+ * Employees without one fall back to the global office settings.
+ */
+async function assertWithinOffice(userId: string, location: Location, action: "punch in" | "punch out") {
+  if (
+    !location ||
+    typeof location.lat !== "number" ||
+    typeof location.lng !== "number" ||
+    Number.isNaN(location.lat) ||
+    Number.isNaN(location.lng)
+  ) {
+    throw new Error(`Location is required to ${action}. Please allow location access.`);
+  }
+
+  const user = await User.findById(userId).select("officeId").populate("office");
+  const office: any = (user as any)?.office;
+
+  if (office) {
+    if (!office.isActive) {
+      throw new Error(`Your assigned office "${office.name}" is inactive. Please contact your administrator.`);
+    }
+    const radius = office.radiusMeters || 100;
+    const distance = calculateDistance(location.lat, location.lng, office.latitude, office.longitude);
+    if (distance > radius) {
+      throw new Error(
+        `You are ${Math.round(distance)} m away from ${office.name}. You must be within ${radius} m of your office to ${action}.`
+      );
+    }
+    return;
+  }
+
+  if (!(await validateLocation(location))) {
+    throw new Error(`Location is outside office geofence. Please ${action} from office premises.`);
+  }
+}
+
+/**
  * Update Attendance Status manually (Admin/Manager)
  */
 export async function updateAttendanceStatus(
@@ -199,9 +236,8 @@ export async function punchIn(userId: string, location: Location, isWFH: boolean
     }
   }
 
-  // Validate location (unless WFH)
-  if (!isWFH && !(await validateLocation(location))) {
-    throw new Error("Location is outside office geofence. Please punch in from office premises.");
+  if (!isWFH) {
+    await assertWithinOffice(userId, location, "punch in");
   }
 
   // Get settings for late mark
@@ -316,6 +352,10 @@ export async function punchOut(
 
   if (!attendance.punchInTime) {
     throw new Error("Must punch in before punching out");
+  }
+
+  if (!attendance.isWFH) {
+    await assertWithinOffice(userId, location, "punch out");
   }
 
   // Handle active breaks

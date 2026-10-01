@@ -21,7 +21,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, User, Loader2, Save, Plus } from "lucide-react";
 import Link from "next/link";
-import { employeeAPI } from "@/lib/api";
+import { employeeAPI, officeAPI } from "@/lib/api";
 import { toast } from "sonner";
 import { useAuthStore } from "@/store/authStore";
 import { AddOptionDialog } from "@/components/employees/add-option-dialog";
@@ -57,6 +57,7 @@ const employeeSchema = z.object({
   designation: z.string().optional(),
   department: z.string().optional(),
   managerId: z.string().optional(),
+  officeId: z.string().optional(),
   monthlySalary: z.string().optional(),
   hourlyRate: z.string().optional(),
   allowWorkFromHome: z.boolean().default(false),
@@ -171,8 +172,17 @@ export default function NewEmployeePage() {
     },
   });
 
+  const { data: officesData } = useQuery({
+    queryKey: ["officesActive"],
+    queryFn: async () => {
+      const response = await officeAPI.getOffices({ activeOnly: true });
+      return response.data;
+    },
+  });
+
   const managers = managersData?.data || [];
   const departments = departmentsData?.data || [];
+  const offices: any[] = Array.isArray(officesData?.data) ? officesData.data : [];
 
   // Create employee mutation
   const createEmployeeMutation = useMutation({
@@ -186,6 +196,7 @@ export default function NewEmployeePage() {
         address: data.address?.trim() || null,
         managerId: data.managerId === "none" || !data.managerId ? null : data.managerId,
         department: data.department === "none" || !data.department ? null : data.department,
+        officeId: data.officeId === "none" || !data.officeId ? null : data.officeId,
         allowWorkFromHome,
         panCardKey,
         aadhaarCardKey,
@@ -479,6 +490,40 @@ export default function NewEmployeePage() {
                 </Select>
               </div>
             )}
+
+            <div className="space-y-2">
+              <Label htmlFor="officeId">Office (punch in/out location)</Label>
+              <Select
+                value={watch("officeId") || "none"}
+                onValueChange={(value) => setValue("officeId", value)}
+              >
+                <SelectTrigger id="officeId">
+                  <SelectValue placeholder="Select office" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No office (use default location rules)</SelectItem>
+                  {offices.map((office) => {
+                    const id = office._id || office.id;
+                    return (
+                      <SelectItem key={id} value={id}>
+                        {office.name} ({office.radiusMeters ?? 100} m)
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                The employee must be within the office radius to punch in and punch out.
+                {offices.length === 0 && user?.role === "ADMIN" && (
+                  <>
+                    {" "}
+                    <Link href="/offices" className="text-indigo-600 hover:underline">
+                      Add an office
+                    </Link>
+                  </>
+                )}
+              </p>
+            </div>
 
             <div className="grid gap-4 md:grid-cols-2">
               <DocumentUpload

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   logActivity,
+  logActivitiesBatch,
   getMyProductivityLogs,
   getAllProductivityLogs,
   getProductivityStats,
@@ -19,6 +20,7 @@ router.get("/activity-types", getActivityTypes);
 
 // Log activity (Logout modal or manual log)
 router.post("/log", logActivity);
+router.post("/log-batch", logActivitiesBatch);
 
 // Get my personal logs (Employee & Admin)
 router.get("/my-logs", getMyProductivityLogs);

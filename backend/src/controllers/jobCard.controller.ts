@@ -131,6 +131,15 @@ export async function deleteJobCard(req: Request, res: Response) {
   }
 }
 
+export async function getNextJobCardNumber(_req: Request, res: Response) {
+  try {
+    const result = await jobCardService.getNextJobCardNumber();
+    return successResponse(res, result, "Next job card number generated");
+  } catch (error: any) {
+    return errorResponse(res, error.message || "Failed to generate job card number", 500);
+  }
+}
+
 export async function getJobCardStats(_req: Request, res: Response) {
   try {
     const stats = await jobCardService.getJobCardStats();

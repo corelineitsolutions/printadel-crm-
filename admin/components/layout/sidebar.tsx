@@ -20,6 +20,7 @@ import {
   User,
   Printer,
   Activity,
+  MapPin,
 } from "lucide-react";
 
 interface NavItem {
@@ -83,6 +84,12 @@ const navItems: NavItem[] = [
     label: "Employees",
     href: "/employees",
     roles: ["ADMIN", "MANAGER"],
+  },
+  {
+    icon: MapPin,
+    label: "Offices",
+    href: "/offices",
+    roles: ["ADMIN"],
   },
   {
     icon: IndianRupee,

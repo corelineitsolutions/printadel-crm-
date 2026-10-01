@@ -28,6 +28,35 @@ export async function logActivity(req: Request, res: Response) {
   }
 }
 
+const logActivitiesBatchSchema = z.object({
+  entries: z
+    .array(
+      z.object({
+        jobCardId: z.string().optional(),
+        activityType: z.string().min(1, "Activity type is required"),
+        durationMinutes: z.number().min(1).optional(),
+      })
+    )
+    .min(1, "Select at least one job card or general work")
+    .max(50),
+  notes: z.string().optional(),
+  isLogoutSession: z.boolean().optional(),
+});
+
+export async function logActivitiesBatch(req: Request, res: Response) {
+  try {
+    const validatedData = logActivitiesBatchSchema.parse(req.body);
+    const logs = await productivityService.logActivitiesBatch({
+      ...validatedData,
+      userId: req.user!.id,
+    });
+    return successResponse(res, logs, "Productivity activities logged successfully", 201);
+  } catch (error: any) {
+    const message = error?.issues?.[0]?.message || error.message || "Failed to log activities";
+    return errorResponse(res, message, 400);
+  }
+}
+
 export async function getMyProductivityLogs(req: Request, res: Response) {
   try {
     const userId = req.user!.id;

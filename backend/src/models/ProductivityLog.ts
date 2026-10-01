@@ -14,6 +14,9 @@ export const PRINTING_ACTIVITIES = [
 
 export type PrintingActivityType = typeof PRINTING_ACTIVITIES[number];
 
+export const HELP_SUPPORT_ACTIVITY = "Help / Support";
+export const MAX_HELP_SUPPORT_PER_LOGOUT = 2;
+
 export interface IProductivityLog extends Document {
   userId: mongoose.Types.ObjectId;
   jobCardId?: mongoose.Types.ObjectId;

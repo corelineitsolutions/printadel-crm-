@@ -13,6 +13,7 @@ import Attendance from "../models/Attendance";
 import Subtask from "../models/Subtask";
 import CustomRole from "../models/CustomRole";
 import Department from "../models/Department";
+import Office from "../models/Office";
 import { EMPLOYEE_DOCUMENT_PREFIX, getEmployeeDocumentUrl as getSignedDocumentUrl } from "../config/r2";
 
 /**
@@ -55,6 +56,7 @@ interface CreateEmployeeData {
   panCardKey?: string | null;
   aadhaarCardKey?: string | null;
   managerId?: string | null;
+  officeId?: string | null;
   hourlyRate?: number | null;
   salary?: number | null; // Added from schema
   monthlySalary?: number | null;
@@ -77,6 +79,7 @@ export interface UpdateEmployeeData {
   dateOfBirth?: Date | string | null;
   joinDate?: Date | string | null;
   managerId?: string | null;
+  officeId?: string | null;
   hourlyRate?: number | null;
   salary?: number | null; // Added from schema
   monthlySalary?: number | null;
@@ -161,8 +164,9 @@ export const getAllEmployees = async (
   // Fetch employees with pagination
   const [employees, total, managersCount, activeCount] = await Promise.all([
     User.find(where)
-      .select("id email fullName role roleName employeeType designation department phone joinDate monthlySalary hourlyRate overtimeMultiplier isActive managerId createdAt")
+      .select("id email fullName role roleName employeeType designation department phone joinDate monthlySalary hourlyRate overtimeMultiplier isActive managerId officeId createdAt")
       .populate("manager", "id fullName email")
+      .populate("office", "id name")
       .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
       .skip(skip)
       .limit(limit),
@@ -199,8 +203,9 @@ export const getEmployeeById = async (
   requestingUserUserRole: UserRole
 ) => {
   const employee = await User.findById(id)
-    .select("id email fullName role roleName employeeType designation department phone address emergencyContact dateOfBirth joinDate monthlySalary hourlyRate overtimeMultiplier isActive managerId panCardKey aadhaarCardKey createdAt updatedAt")
-    .populate("manager", "id fullName email designation");
+    .select("id email fullName role roleName employeeType designation department phone address emergencyContact dateOfBirth joinDate monthlySalary hourlyRate overtimeMultiplier isActive managerId officeId panCardKey aadhaarCardKey createdAt updatedAt")
+    .populate("manager", "id fullName email designation")
+    .populate("office", "id name address latitude longitude radiusMeters");
 
   if (!employee) {
     throw new Error("Employee not found");
@@ -279,6 +284,8 @@ export const createEmployee = async (
     }
   }
 
+  const officeId = await resolveOfficeId(data.officeId);
+
   const newId = new mongoose.Types.ObjectId();
 
   // Create employee (password will be hashed automatically by model middleware)
@@ -299,6 +306,7 @@ export const createEmployee = async (
     dateOfBirth: data.dateOfBirth || undefined,
     joinDate: data.joinDate || new Date(),
     managerId: data.managerId || undefined,
+    officeId,
     monthlySalary: data.monthlySalary || undefined,
     hourlyRate: data.monthlySalary ? (data.monthlySalary / 270) : (data.hourlyRate || 0),
     overtimeMultiplier: data.overtimeMultiplier || undefined,
@@ -378,6 +386,21 @@ export const updateEmployee = async (
     existingEmployee.managerId = manager._id as any;
   }
 
+  if (data.officeId !== undefined) {
+    const currentOfficeId = existingEmployee.officeId ? String(existingEmployee.officeId) : null;
+    const requestedOfficeId = data.officeId && data.officeId !== "none" ? data.officeId : null;
+    if (requestedOfficeId !== currentOfficeId) {
+      existingEmployee.officeId = (await resolveOfficeId(data.officeId)) as any;
+    }
+  }
+
+  if (data.password !== undefined && data.password !== "") {
+    if (requestingUserUserRole !== "ADMIN") {
+      throw new Error("Access denied: Only Admins can change an employee's password");
+    }
+    existingEmployee.password = data.password;
+  }
+
   // Phone number mapping and clearing
   if (data.phoneNumber !== undefined || data.phone !== undefined) {
     const p = data.phone || data.phoneNumber;
@@ -428,9 +451,21 @@ export const updateEmployee = async (
   await existingEmployee.save();
 
   return await User.findById(id)
-    .select("id email fullName role roleName employeeType designation department phone address emergencyContact dateOfBirth joinDate monthlySalary hourlyRate overtimeMultiplier isActive managerId updatedAt")
-    .populate("manager", "id fullName email");
+    .select("id email fullName role roleName employeeType designation department phone address emergencyContact dateOfBirth joinDate monthlySalary hourlyRate overtimeMultiplier isActive managerId officeId updatedAt")
+    .populate("manager", "id fullName email")
+    .populate("office", "id name");
 };
+
+async function resolveOfficeId(officeId?: string | null) {
+  if (!officeId || officeId === "none") return null;
+  if (!mongoose.Types.ObjectId.isValid(officeId)) {
+    throw new Error("Invalid office");
+  }
+  const office = await Office.findById(officeId).select("_id isActive");
+  if (!office) throw new Error("Selected office not found");
+  if (!office.isActive) throw new Error("Selected office is inactive");
+  return office._id;
+}
 
 /**
  * Deactivate employee (soft delete)

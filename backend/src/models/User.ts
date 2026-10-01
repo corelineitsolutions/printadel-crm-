@@ -30,6 +30,7 @@ export interface IUser extends Document {
   hourlyRate?: number | null;
   overtimeMultiplier: number;
   managerId?: mongoose.Types.ObjectId | null;
+  officeId?: mongoose.Types.ObjectId | null;
   isActive: boolean;
   emergencyContact?: string | null;
   dateOfBirth?: Date | null;
@@ -57,6 +58,7 @@ const UserSchema = new Schema<IUser>(
     hourlyRate: Number,
     overtimeMultiplier: { type: Number, default: 1.5 },
     managerId: { type: Schema.Types.ObjectId, ref: "User" },
+    officeId: { type: Schema.Types.ObjectId, ref: "Office", default: null },
     isActive: { type: Boolean, default: true },
     emergencyContact: String,
     dateOfBirth: Date,
@@ -81,11 +83,19 @@ UserSchema.pre("save", async function() {
 UserSchema.index({ role: 1 });
 UserSchema.index({ employeeType: 1 });
 UserSchema.index({ managerId: 1 });
+UserSchema.index({ officeId: 1 });
 
 // Virtual for manager population
 UserSchema.virtual("manager", {
   ref: "User",
   localField: "managerId",
+  foreignField: "_id",
+  justOne: true,
+});
+
+UserSchema.virtual("office", {
+  ref: "Office",
+  localField: "officeId",
   foreignField: "_id",
   justOne: true,
 });

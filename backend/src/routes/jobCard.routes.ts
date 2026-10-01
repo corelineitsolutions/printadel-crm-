@@ -7,6 +7,7 @@ import {
   updateJobCardStatus,
   deleteJobCard,
   getJobCardStats,
+  getNextJobCardNumber,
 } from "../controllers/jobCard.controller";
 import { authenticate } from "../middleware/auth.middleware";
 import { requireManagerOrAdmin } from "../middleware/role.middleware";
@@ -19,6 +20,7 @@ router.use(authenticate);
 // List job cards & statistics
 router.get("/", getJobCards);
 router.get("/stats", getJobCardStats);
+router.get("/next-number", requireManagerOrAdmin, getNextJobCardNumber);
 router.get("/:id", getJobCardById);
 
 // Create job card (Admin & Manager)

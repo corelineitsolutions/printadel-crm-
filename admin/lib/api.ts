@@ -257,6 +257,22 @@ export const jobCardAPI = {
     api.patch(`/job-cards/${id}/status`, { status, note }),
   deleteJobCard: (id: string) => api.delete(`/job-cards/${id}`),
   getJobCardStats: () => api.get("/job-cards/stats"),
+  getNextJobCardNumber: () => api.get("/job-cards/next-number"),
+};
+
+// Office API
+export const officeAPI = {
+  getOffices: (params?: { activeOnly?: boolean }) => api.get("/offices", { params }),
+  createOffice: (data: {
+    name: string;
+    address?: string | null;
+    latitude: number;
+    longitude: number;
+    radiusMeters?: number;
+    isActive?: boolean;
+  }) => api.post("/offices", data),
+  updateOffice: (id: string, data: any) => api.put(`/offices/${id}`, data),
+  deleteOffice: (id: string) => api.delete(`/offices/${id}`),
 };
 
 // Productivity API
@@ -268,6 +284,11 @@ export const productivityAPI = {
     notes?: string;
     isLogoutSession?: boolean;
   }) => api.post("/productivity/log", data),
+  logActivities: (data: {
+    entries: { jobCardId?: string; activityType: string; durationMinutes?: number }[];
+    notes?: string;
+    isLogoutSession?: boolean;
+  }) => api.post("/productivity/log-batch", data),
   getMyLogs: (params?: any) => api.get("/productivity/my-logs", { params }),
   getAllLogs: (params?: any) => api.get("/productivity/all", { params }),
   getStats: (params?: any) => api.get("/productivity/stats", { params }),

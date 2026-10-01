@@ -18,10 +18,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, User, Loader2, Save } from "lucide-react";
+import { ArrowLeft, User, Loader2, Save, KeyRound, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
-import { employeeAPI } from "@/lib/api";
+import { employeeAPI, officeAPI } from "@/lib/api";
 import { toast } from "sonner";
+import { useAuthStore } from "@/store/authStore";
 
 const employeeSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -32,6 +33,7 @@ const employeeSchema = z.object({
   designation: z.string().optional(),
   department: z.string().optional(),
   managerId: z.string().optional(),
+  officeId: z.string().optional(),
   monthlySalary: z.string().optional(),
   hourlyRate: z.string().optional(),
 });
@@ -43,7 +45,12 @@ export default function EditEmployeePage() {
   const params = useParams();
   const employeeId = params.id as string;
   const queryClient = useQueryClient();
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === "ADMIN";
   const [isActive, setIsActive] = useState(true);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const {
     register,
@@ -80,6 +87,7 @@ export default function EditEmployeePage() {
         designation: employeeData.designation || "",
         department: employeeData.department || "none",
         managerId: employeeData.managerId || "none",
+        officeId: employeeData.officeId ? String(employeeData.officeId) : "none",
         monthlySalary: employeeData.monthlySalary != null ? employeeData.monthlySalary.toString() : "",
         hourlyRate: employeeData.hourlyRate != null ? employeeData.hourlyRate.toString() : "",
       });
@@ -105,8 +113,22 @@ export default function EditEmployeePage() {
     },
   });
 
+  const { data: officesData } = useQuery({
+    queryKey: ["officesActive"],
+    queryFn: async () => {
+      const response = await officeAPI.getOffices({ activeOnly: true });
+      return response.data;
+    },
+  });
+
   const managers = managersData?.data || [];
   const departments = departmentsData?.data || [];
+  const offices: any[] = Array.isArray(officesData?.data) ? officesData.data : [];
+  const assignedOffice = employeeData?.office;
+  const officeOptions =
+    assignedOffice && !offices.some((o) => String(o._id || o.id) === String(assignedOffice._id || assignedOffice.id))
+      ? [assignedOffice, ...offices]
+      : offices;
 
   // Update employee mutation
   const updateEmployeeMutation = useMutation({
@@ -126,6 +148,17 @@ export default function EditEmployeePage() {
   });
 
   const onSubmit = (data: EmployeeFormData) => {
+    if (newPassword || confirmPassword) {
+      if (newPassword.length < 6) {
+        toast.error("New password must be at least 6 characters");
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        toast.error("New password and confirm password do not match");
+        return;
+      }
+    }
+
     const { hourlyRate, ...restData } = data;
     const salary = data.monthlySalary && data.monthlySalary.trim() !== ""
       ? parseFloat(data.monthlySalary)
@@ -141,6 +174,8 @@ export default function EditEmployeePage() {
       monthlySalary: salary,
       isActive,
       managerId: data.managerId === "none" || !data.managerId || data.managerId.trim() === "" ? null : data.managerId,
+      officeId: data.officeId === "none" || !data.officeId ? null : data.officeId,
+      ...(isAdmin && newPassword ? { password: newPassword } : {}),
     };
     updateEmployeeMutation.mutate(payload);
   };
@@ -215,6 +250,71 @@ export default function EditEmployeePage() {
                 Account is active (employee can login)
               </Label>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Password */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <KeyRound className="w-5 h-5" />
+              Password
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Current Password</Label>
+              <Input value="••••••••" disabled readOnly />
+              <p className="text-xs text-muted-foreground">
+                Passwords are stored encrypted, so the current password cannot be shown to anyone
+                (including admins). Set a new password below and share it with the employee.
+              </p>
+            </div>
+
+            {isAdmin ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="newPassword">New Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="newPassword"
+                      type={showPassword ? "text" : "password"}
+                      autoComplete="new-password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Leave blank to keep current password"
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                  <Input
+                    id="confirmPassword"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Re-enter new password"
+                  />
+                  {confirmPassword && newPassword !== confirmPassword && (
+                    <p className="text-sm text-red-500">Passwords do not match</p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Only an admin can change another employee&apos;s password.
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -368,6 +468,32 @@ export default function EditEmployeePage() {
                 </Select>
               </div>
             )}
+
+            <div className="space-y-2">
+              <Label htmlFor="officeId">Office (punch in/out location)</Label>
+              <Select
+                value={watch("officeId") || "none"}
+                onValueChange={(value) => setValue("officeId", value)}
+              >
+                <SelectTrigger id="officeId">
+                  <SelectValue placeholder="Select office" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No office (use default location rules)</SelectItem>
+                  {officeOptions.map((office: any) => {
+                    const id = String(office._id || office.id);
+                    return (
+                      <SelectItem key={id} value={id}>
+                        {office.name} ({office.radiusMeters ?? 100} m)
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                The employee must be within the office radius to punch in and punch out.
+              </p>
+            </div>
           </CardContent>
         </Card>
 

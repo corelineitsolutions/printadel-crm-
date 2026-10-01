@@ -19,4 +19,5 @@ export { default as Setting, ISetting } from "./Setting";
 export { default as JobCard, IJobCard, JobCardStatus, JobCardPriority } from "./JobCard";
 export { default as CustomRole, ICustomRole } from "./CustomRole";
 export { default as Department, IDepartment } from "./Department";
+export { default as Office, IOffice } from "./Office";
 export { default as ProductivityLog, IProductivityLog, PRINTING_ACTIVITIES, PrintingActivityType } from "./ProductivityLog";
