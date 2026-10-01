@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -82,6 +82,8 @@ export default function AttendancePage() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [location, setLocation] = useState<Location | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [locationPermission, setLocationPermission] = useState<PermissionState | null>(null);
+  const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const { user, setPunchStatus, markActivityLoggedToday } = useAuthStore();
   const isAdminOrManager = user?.role === "ADMIN" || user?.role === "MANAGER";
@@ -130,8 +132,7 @@ export default function AttendancePage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Get user's location
-  useEffect(() => {
+  const requestLocation = useCallback(() => {
     if (!navigator.geolocation) {
       setLocationError("Geolocation is not supported by your browser");
       return;
@@ -145,9 +146,15 @@ export default function AttendancePage() {
           lng: position.coords.longitude,
         });
         setLocationError(null);
+        setLocationPermission("granted");
+        setShowLocationPrompt(false);
         setIsDetectingLocation(false);
       },
       (error) => {
+        if (error.code === 1) {
+          setLocationPermission("denied");
+          setShowLocationPrompt(true);
+        }
         setLocationError(
           error.code === 1
             ? "Location access denied. Please enable location permissions."
@@ -155,9 +162,47 @@ export default function AttendancePage() {
         );
         setIsDetectingLocation(false);
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   }, []);
+
+  // Ask for location permission as soon as an employee opens the page
+  useEffect(() => {
+    if (!showDailyTracking) return;
+    if (!navigator.geolocation) {
+      setLocationError("Geolocation is not supported by your browser");
+      return;
+    }
+
+    let permissionStatus: PermissionStatus | null = null;
+    const handlePermissionChange = () => {
+      if (!permissionStatus) return;
+      setLocationPermission(permissionStatus.state);
+      if (permissionStatus.state === "granted") requestLocation();
+    };
+
+    if (navigator.permissions?.query) {
+      navigator.permissions
+        .query({ name: "geolocation" as PermissionName })
+        .then((status) => {
+          permissionStatus = status;
+          setLocationPermission(status.state);
+          status.addEventListener("change", handlePermissionChange);
+          if (status.state === "granted") {
+            requestLocation();
+          } else {
+            setShowLocationPrompt(true);
+          }
+        })
+        .catch(() => requestLocation());
+    } else {
+      requestLocation();
+    }
+
+    return () => {
+      permissionStatus?.removeEventListener("change", handlePermissionChange);
+    };
+  }, [showDailyTracking, requestLocation]);
 
   // Fetch today's attendance
   const { data: attendance, isLoading } = useQuery({
@@ -562,7 +607,7 @@ export default function AttendancePage() {
 
       {/* Main Content with Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
-        <TabsList className="mb-2">
+        <TabsList className="mb-2 h-auto w-full flex flex-wrap justify-start gap-1 sm:w-auto sm:inline-flex">
           {showDailyTracking && (
             <TabsTrigger value="tracking" className="gap-2">
               <ListRestart className="w-4 h-4" />
@@ -614,9 +659,25 @@ export default function AttendancePage() {
                           <span>Detecting your location...</span>
                         </div>
                       ) : locationError ? (
-                        <div className="flex items-center gap-2 text-sm text-red-600">
-                          <AlertCircle className="w-4 h-4" />
-                          <span>{locationError}</span>
+                        <div className="space-y-2">
+                          <div className="flex items-start gap-2 text-sm text-red-600">
+                            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                            <span>{locationError}</span>
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="gap-1.5"
+                            onClick={() =>
+                              locationPermission === "denied"
+                                ? setShowLocationPrompt(true)
+                                : requestLocation()
+                            }
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            Retry Location
+                          </Button>
                         </div>
                       ) : location ? (
                         <div className="flex items-center gap-2 text-sm text-green-600">
@@ -1686,6 +1747,53 @@ export default function AttendancePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Location Permission Dialog */}
+      <Dialog open={showLocationPrompt && !isPunchedOut} onOpenChange={setShowLocationPrompt}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader className="text-left">
+            <DialogTitle className="flex items-center gap-2 pr-6">
+              <MapPin className="w-5 h-5 text-primary shrink-0" />
+              Allow Location Access
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p className="text-muted-foreground">
+              Your location is needed to punch in and punch out. You must be within your
+              office radius (100 m) to mark attendance.
+            </p>
+            {locationPermission === "denied" ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900 space-y-1.5">
+                <p className="font-semibold">Location is blocked for this site</p>
+                <ol className="list-decimal pl-5 space-y-1 text-xs">
+                  <li>Tap the lock / settings icon next to the website address.</li>
+                  <li>Open <strong>Permissions</strong> → <strong>Location</strong>.</li>
+                  <li>Choose <strong>Allow</strong>, then tap <strong>Try Again</strong> below.</li>
+                </ol>
+                <p className="text-xs">Also make sure your phone&apos;s Location (GPS) is turned on.</p>
+              </div>
+            ) : (
+              <p className="text-muted-foreground">
+                Tap <strong>Allow Location</strong>, then choose <strong>Allow</strong> in your
+                browser&apos;s popup.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowLocationPrompt(false)}>
+              Not Now
+            </Button>
+            <Button onClick={requestLocation} disabled={isDetectingLocation} className="gap-2">
+              {isDetectingLocation ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <MapPin className="w-4 h-4" />
+              )}
+              {locationPermission === "denied" ? "Try Again" : "Allow Location"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Punch Out Summary Dialog */}
       <Dialog
         open={showPunchOutDialog}
@@ -1703,7 +1811,7 @@ export default function AttendancePage() {
             />
             {activityEntries.length === 0 && (
               <p className="text-xs text-amber-700">
-                Select at least one job card (or General Operations) to punch out.
+                Select at least one job card (or General Operations), or use Skip &amp; Punch Out.
               </p>
             )}
 
@@ -1723,8 +1831,19 @@ export default function AttendancePage() {
 
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPunchOutDialog(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setShowPunchOutDialog(false)}
+              disabled={punchOutMutation.isPending}
+            >
               Cancel
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => punchOutMutation.mutate({ summary: workSummary, activities: [] })}
+              disabled={punchOutMutation.isPending}
+            >
+              Skip & Punch Out
             </Button>
             <Button
               onClick={() => {

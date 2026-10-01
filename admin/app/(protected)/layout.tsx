@@ -69,7 +69,7 @@ export default function ProtectedLayout({
         {/* Main Content */}
         <div className="md:pl-64">
           <Header onMenuClick={() => setIsMobileMenuOpen(true)} />
-          <main className="p-3 sm:p-4 md:p-6">{children}</main>
+          <main className="p-3 sm:p-4 md:p-6 min-w-0 overflow-x-clip">{children}</main>
         </div>
 
         {/* Mobile Sidebar Overlay */}

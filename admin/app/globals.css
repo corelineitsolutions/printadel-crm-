@@ -78,7 +78,8 @@
   
   /* Touch-friendly buttons on mobile */
   @media (max-width: 640px) {
-    button:not(.h-auto), a:not(.h-auto) {
+    button:not(.h-auto):not([role="checkbox"]):not([role="switch"]):not([role="radio"]),
+    a:not(.h-auto) {
       min-height: 44px;
       min-width: 44px;
     }
