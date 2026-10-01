@@ -23,7 +23,7 @@ interface HeaderProps {
 
 export function Header({ onMenuClick }: HeaderProps) {
   const router = useRouter();
-  const { user, logout, isPunchedIn } = useAuthStore();
+  const { user, logout, isPunchedIn, hasLoggedActivityToday } = useAuthStore();
   const [showLogoutModal, setShowLogoutModal] = useState<boolean>(false);
 
   const handleLogoutClick = () => {
@@ -32,6 +32,10 @@ export function Header({ onMenuClick }: HeaderProps) {
         description: "Please punch out and submit your work summary before logging out.",
         duration: 5000,
       });
+      return;
+    }
+    if (hasLoggedActivityToday()) {
+      executeFinalLogout();
       return;
     }
     setShowLogoutModal(true);

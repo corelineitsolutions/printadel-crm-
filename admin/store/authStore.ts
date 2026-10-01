@@ -19,26 +19,43 @@ interface AuthState {
   token: string | null;
   isAuthenticated: boolean;
   isPunchedIn: boolean;
+  activityLoggedFor: { userId: string; date: string } | null;
   _hasHydrated: boolean;
   setHasHydrated: (state: boolean) => void;
   setPunchStatus: (status: boolean) => void;
+  markActivityLoggedToday: () => void;
+  hasLoggedActivityToday: () => boolean;
   login: (user: User, token: string) => void;
   logout: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       token: null,
       isAuthenticated: false,
       isPunchedIn: false,
+      activityLoggedFor: null,
       _hasHydrated: false,
       setHasHydrated: (state) => {
         set({ _hasHydrated: state });
       },
       setPunchStatus: (status) => {
         set({ isPunchedIn: status });
+      },
+      markActivityLoggedToday: () => {
+        const userId = get().user?.id;
+        if (!userId) return;
+        set({ activityLoggedFor: { userId, date: new Date().toDateString() } });
+      },
+      hasLoggedActivityToday: () => {
+        const { activityLoggedFor, user } = get();
+        return (
+          !!activityLoggedFor &&
+          activityLoggedFor.userId === user?.id &&
+          activityLoggedFor.date === new Date().toDateString()
+        );
       },
       login: (user, token) => {
         if (!user || !token) {
@@ -60,6 +77,7 @@ export const useAuthStore = create<AuthState>()(
         user: state.user,
         token: state.token,
         isAuthenticated: state.isAuthenticated,
+        activityLoggedFor: state.activityLoggedFor,
         _hasHydrated: state._hasHydrated,
       }),
       onRehydrateStorage: () => (state) => {

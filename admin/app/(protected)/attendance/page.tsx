@@ -28,7 +28,15 @@ import {
   Eye,
   X
 } from "lucide-react";
-import { attendanceAPI, api } from "@/lib/api";
+import { attendanceAPI, api, productivityAPI } from "@/lib/api";
+import {
+  WorkActivitySelector,
+  WorkEntry,
+  HELP_SUPPORT,
+  MAX_HELP_SUPPORT,
+  countHelpSupport,
+  toActivityPayload,
+} from "@/components/productivity/work-activity-selector";
 import { format, subDays, startOfMonth } from "date-fns";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
@@ -77,7 +85,7 @@ export default function AttendancePage() {
   const [location, setLocation] = useState<Location | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
-  const { user, setPunchStatus } = useAuthStore();
+  const { user, setPunchStatus, markActivityLoggedToday } = useAuthStore();
   const isAdminOrManager = user?.role === "ADMIN" || user?.role === "MANAGER";
   const showDailyTracking = user?.role !== "ADMIN";
 
@@ -104,6 +112,7 @@ export default function AttendancePage() {
 
   const [showPunchOutDialog, setShowPunchOutDialog] = useState(false);
   const [workSummary, setWorkSummary] = useState("");
+  const [activityEntries, setActivityEntries] = useState<WorkEntry[]>([]);
 
   // Designer Punch Out state & handlers
   const isDesigner = Boolean(
@@ -344,16 +353,46 @@ export default function AttendancePage() {
 
   // Punch Out mutation
   const punchOutMutation = useMutation({
-    mutationFn: ({ summary, images }: { summary: string; images?: string[] }) => {
+    mutationFn: async ({
+      summary,
+      images,
+      activities,
+    }: {
+      summary: string;
+      images?: string[];
+      activities: WorkEntry[];
+    }) => {
       if (!location) throw new Error("Location not available");
-      return attendanceAPI.punchOut(location, summary, images);
+      await attendanceAPI.punchOut(location, summary, images);
+
+      let activityError: string | null = null;
+      if (activities.length > 0) {
+        try {
+          await productivityAPI.logActivities({
+            entries: toActivityPayload(activities),
+            notes: summary.trim(),
+            isLogoutSession: true,
+          });
+        } catch (error: any) {
+          activityError =
+            error.response?.data?.message || "Job card activity could not be recorded";
+        }
+      }
+      return { activityError };
     },
-    onSuccess: () => {
+    onSuccess: ({ activityError }) => {
       queryClient.invalidateQueries({ queryKey: ["attendance"] });
+      queryClient.invalidateQueries({ queryKey: ["jobCards"] });
       toast.success("Punched out successfully!");
+      if (activityError) {
+        toast.error(`Punched out, but ${activityError}`);
+      } else {
+        markActivityLoggedToday();
+      }
       setShowPunchOutDialog(false);
       setWorkSummary("");
       setSelectedImages([]);
+      setActivityEntries([]);
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || "Failed to punch out");
@@ -1704,10 +1743,10 @@ export default function AttendancePage() {
           }
         }}
       >
-        <DialogContent className={isDesigner ? "max-w-lg" : ""}>
+        <DialogContent className="sm:max-w-[640px] w-[95vw] max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <span>Daily Work Summary</span>
+              <span>Punch Out — Activity & Productivity</span>
               {isDesigner && (
                 <span className="text-[11px] font-medium bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 px-2 py-0.5 rounded border border-purple-300/60">
                   Designer Required
@@ -1716,7 +1755,18 @@ export default function AttendancePage() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="space-y-2">
+            <WorkActivitySelector
+              entries={activityEntries}
+              onChange={setActivityEntries}
+              enabled={showPunchOutDialog}
+            />
+            {activityEntries.length === 0 && (
+              <p className="text-xs text-amber-700">
+                Select at least one job card (or General Operations) to punch out.
+              </p>
+            )}
+
+            <div className="space-y-2 border-t pt-3">
               <Label>What did you do today? *</Label>
               <Textarea
                 placeholder="Briefly describe your tasks and accomplishments today..."
@@ -1821,9 +1871,20 @@ export default function AttendancePage() {
               Cancel
             </Button>
             <Button
-              onClick={() => punchOutMutation.mutate({ summary: workSummary, images: selectedImages })}
+              onClick={() => {
+                if (countHelpSupport(activityEntries) > MAX_HELP_SUPPORT) {
+                  toast.error(`"${HELP_SUPPORT}" can be selected for only ${MAX_HELP_SUPPORT} job cards`);
+                  return;
+                }
+                punchOutMutation.mutate({
+                  summary: workSummary,
+                  images: selectedImages,
+                  activities: activityEntries,
+                });
+              }}
               disabled={
                 punchOutMutation.isPending ||
+                activityEntries.length === 0 ||
                 !workSummary.trim() ||
                 (isDesigner && selectedImages.length === 0)
               }
