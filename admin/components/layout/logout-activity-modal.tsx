@@ -80,14 +80,16 @@ export function LogoutActivityModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && !isSubmitting && onClose()}>
-      <DialogContent className="sm:max-w-[640px] w-[95vw] max-h-[90dvh] overflow-y-auto rounded-2xl">
-        <DialogHeader>
-          <div className="flex items-center gap-3 mb-1">
-            <div className="p-2.5 bg-primary/10 text-primary rounded-xl">
+      <DialogContent className="sm:max-w-[640px] rounded-2xl">
+        <DialogHeader className="text-left">
+          <div className="flex items-start gap-3 mb-1 pr-6">
+            <div className="p-2.5 bg-primary/10 text-primary rounded-xl shrink-0">
               <Printer className="w-5 h-5" />
             </div>
-            <div>
-              <DialogTitle className="text-xl font-bold">Logout Activity & Productivity</DialogTitle>
+            <div className="min-w-0">
+              <DialogTitle className="text-lg sm:text-xl font-bold leading-tight">
+                Logout Activity & Productivity
+              </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground mt-0.5">
                 Select every Job Card you worked on, then choose the activity and time for each.
               </DialogDescription>
@@ -112,7 +114,7 @@ export function LogoutActivityModal({
           </div>
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t">
+        <DialogFooter className="pt-3 border-t sm:justify-between">
           <Button
             type="button"
             variant="ghost"
@@ -122,7 +124,8 @@ export function LogoutActivityModal({
           >
             Skip & Sign Out
           </Button>
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex">
+
             <Button
               type="button"
               variant="outline"

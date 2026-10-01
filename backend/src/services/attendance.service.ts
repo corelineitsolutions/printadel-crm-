@@ -320,17 +320,6 @@ export async function punchOut(
 ) {
   const today = new Date();
 
-  // Validate designer work images requirement
-  const user = await User.findById(userId);
-  const isDesigner = Boolean(
-    user?.designation?.toLowerCase().includes("design") ||
-    user?.department?.toLowerCase().includes("design")
-  );
-
-  if (isDesigner && (!workImages || workImages.length === 0)) {
-    throw new Error("Designers must upload work images (JPGs) to complete punch out.");
-  }
-
   // Find today's attendance
   // Night Shift Support. Look for an active punch-in from the last 15 hours.
   // We look for any record for this user where punchOutTime is missing and punchInTime is within the last 15 hours.

@@ -22,9 +22,7 @@ import {
   BarChart3,
   CalendarDays,
   ListRestart,
-  UploadCloud,
   Image as ImageIcon,
-  Trash2,
   Eye,
   X
 } from "lucide-react";
@@ -114,12 +112,6 @@ export default function AttendancePage() {
   const [workSummary, setWorkSummary] = useState("");
   const [activityEntries, setActivityEntries] = useState<WorkEntry[]>([]);
 
-  // Designer Punch Out state & handlers
-  const isDesigner = Boolean(
-    user?.designation?.toLowerCase().includes("design") ||
-    user?.department?.toLowerCase().includes("design")
-  );
-  const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [imagePreviewModal, setImagePreviewModal] = useState<{
     isOpen: boolean;
     images: string[];
@@ -129,36 +121,6 @@ export default function AttendancePage() {
     images: [],
     title: "",
   });
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (!files.length) return;
-
-    files.forEach((file) => {
-      if (!file.type.match(/^image\/(jpeg|jpg|png|webp)$/i) && !file.name.match(/\.(jpg|jpeg|png|webp)$/i)) {
-        toast.error(`${file.name} is not a valid JPG/PNG image file.`);
-        return;
-      }
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error(`${file.name} exceeds 10MB limit.`);
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === "string") {
-          setSelectedImages((prev) => [...prev, reader.result as string]);
-        }
-      };
-      reader.readAsDataURL(file);
-    });
-
-    e.target.value = "";
-  };
-
-  const handleRemoveImage = (index: number) => {
-    setSelectedImages((prev) => prev.filter((_, i) => i !== index));
-  };
 
   const [isWFHMode, setIsWFHMode] = useState(false);
 
@@ -353,17 +315,9 @@ export default function AttendancePage() {
 
   // Punch Out mutation
   const punchOutMutation = useMutation({
-    mutationFn: async ({
-      summary,
-      images,
-      activities,
-    }: {
-      summary: string;
-      images?: string[];
-      activities: WorkEntry[];
-    }) => {
+    mutationFn: async ({ summary, activities }: { summary: string; activities: WorkEntry[] }) => {
       if (!location) throw new Error("Location not available");
-      await attendanceAPI.punchOut(location, summary, images);
+      await attendanceAPI.punchOut(location, summary);
 
       let activityError: string | null = null;
       if (activities.length > 0) {
@@ -391,7 +345,6 @@ export default function AttendancePage() {
       }
       setShowPunchOutDialog(false);
       setWorkSummary("");
-      setSelectedImages([]);
       setActivityEntries([]);
     },
     onError: (error: any) => {
@@ -1736,23 +1689,11 @@ export default function AttendancePage() {
       {/* Punch Out Summary Dialog */}
       <Dialog
         open={showPunchOutDialog}
-        onOpenChange={(open) => {
-          setShowPunchOutDialog(open);
-          if (!open) {
-            setSelectedImages([]);
-          }
-        }}
+        onOpenChange={setShowPunchOutDialog}
       >
-        <DialogContent className="sm:max-w-[640px] w-[95vw] max-h-[90dvh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <span>Punch Out — Activity & Productivity</span>
-              {isDesigner && (
-                <span className="text-[11px] font-medium bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 px-2 py-0.5 rounded border border-purple-300/60">
-                  Designer Required
-                </span>
-              )}
-            </DialogTitle>
+        <DialogContent className="sm:max-w-[640px]">
+          <DialogHeader className="text-left">
+            <DialogTitle className="pr-6 leading-tight">Punch Out — Activity & Productivity</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <WorkActivitySelector
@@ -1772,7 +1713,7 @@ export default function AttendancePage() {
                 placeholder="Briefly describe your tasks and accomplishments today..."
                 value={workSummary}
                 onChange={(e) => setWorkSummary(e.target.value)}
-                rows={isDesigner ? 3 : 5}
+                rows={4}
                 className="resize-none"
               />
               <p className="text-xs text-muted-foreground">
@@ -1780,91 +1721,6 @@ export default function AttendancePage() {
               </p>
             </div>
 
-            {/* Designer Mandatory Image Upload Section */}
-            {isDesigner && (
-              <div className="space-y-2.5 border-t pt-3">
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-semibold flex items-center gap-1.5 text-foreground">
-                    <ImageIcon className="w-4 h-4 text-purple-600" />
-                    Upload Design Work (JPGs) <span className="text-red-500">*</span>
-                  </Label>
-                  <span className="text-[11px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 px-2 py-0.5 rounded border border-amber-300/60">
-                    Mandatory to Punch Out
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  As a designer, you must upload JPG images of your designs/assets completed today before punching out. Multiple images can be uploaded.
-                </p>
-
-                {/* Dropzone */}
-                <div className="relative border-2 border-dashed rounded-lg p-4 text-center hover:bg-muted/40 transition-colors border-muted-foreground/30">
-                  <input
-                    id="designer-image-upload"
-                    type="file"
-                    accept="image/jpeg,image/jpg,image/png,image/webp"
-                    multiple
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    onChange={handleImageUpload}
-                  />
-                  <div className="flex flex-col items-center justify-center gap-1 pointer-events-none">
-                    <UploadCloud className="w-7 h-7 text-muted-foreground" />
-                    <span className="text-xs font-medium text-foreground">
-                      Click or drag & drop to upload images
-                    </span>
-                    <span className="text-[10px] text-muted-foreground">
-                      Supports multiple JPG / PNG files (Max 10MB each)
-                    </span>
-                  </div>
-                </div>
-
-                {/* Uploaded Images Thumbnails Grid */}
-                {selectedImages.length > 0 ? (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span className="font-medium text-foreground">
-                        {selectedImages.length} {selectedImages.length === 1 ? "image" : "images"} selected
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedImages([])}
-                        className="text-red-600 hover:underline text-[11px]"
-                      >
-                        Clear all
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-1.5 border rounded-md bg-muted/20">
-                      {selectedImages.map((img, idx) => (
-                        <div key={idx} className="relative group rounded-md overflow-hidden border bg-background aspect-square shadow-sm">
-                          <img
-                            src={img}
-                            alt={`Design ${idx + 1}`}
-                            className="w-full h-full object-cover"
-                          />
-                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveImage(idx)}
-                              className="p-1 rounded-full bg-red-600 text-white hover:bg-red-700 transition-colors"
-                              title="Remove image"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                          <span className="absolute bottom-1 left-1 bg-black/75 text-white text-[9px] px-1 py-0.2 rounded font-medium">
-                            #{idx + 1}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 p-2.5 rounded-md bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 text-amber-800 dark:text-amber-300 text-xs">
-                    <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                    <span>Please upload at least 1 design image (JPG) to enable punch out.</span>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowPunchOutDialog(false)}>
@@ -1878,15 +1734,13 @@ export default function AttendancePage() {
                 }
                 punchOutMutation.mutate({
                   summary: workSummary,
-                  images: selectedImages,
                   activities: activityEntries,
                 });
               }}
               disabled={
                 punchOutMutation.isPending ||
                 activityEntries.length === 0 ||
-                !workSummary.trim() ||
-                (isDesigner && selectedImages.length === 0)
+                !workSummary.trim()
               }
               className="bg-red-600 hover:bg-red-700 text-white"
             >

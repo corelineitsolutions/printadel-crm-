@@ -131,8 +131,8 @@ export function WorkActivitySelector({ entries, onChange, enabled }: WorkActivit
   };
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-1.5">
+    <div className="space-y-4 min-w-0">
+      <div className="space-y-1.5 min-w-0">
         <div className="flex items-center justify-between">
           <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Job Cards / Orders Worked On
@@ -153,6 +153,7 @@ export function WorkActivitySelector({ entries, onChange, enabled }: WorkActivit
         <div className="border rounded-xl max-h-48 overflow-y-auto divide-y">
           <label className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-muted/50">
             <Checkbox
+              className="shrink-0"
               checked={isSelected(GENERAL_KEY)}
               onCheckedChange={(checked) => toggleEntry(GENERAL_KEY, !!checked)}
             />
@@ -179,10 +180,11 @@ export function WorkActivitySelector({ entries, onChange, enabled }: WorkActivit
                   className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-muted/50"
                 >
                   <Checkbox
+                    className="shrink-0"
                     checked={isSelected(id)}
                     onCheckedChange={(checked) => toggleEntry(id, !!checked)}
                   />
-                  <span className="text-sm min-w-0">
+                  <span className="text-sm min-w-0 break-words">
                     <span className="font-medium text-foreground">{jc.jobCardNumber}</span>
                     <span className="text-muted-foreground">
                       {" "}
@@ -198,8 +200,8 @@ export function WorkActivitySelector({ entries, onChange, enabled }: WorkActivit
       </div>
 
       {entries.length > 0 && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
+        <div className="space-y-2 min-w-0">
+          <div className="flex items-center justify-between gap-2">
             <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Activity & Time per Job Card
             </Label>
@@ -218,9 +220,9 @@ export function WorkActivitySelector({ entries, onChange, enabled }: WorkActivit
               const helpSupportLocked =
                 helpSupportCount >= MAX_HELP_SUPPORT && entry.activityType !== HELP_SUPPORT;
               return (
-                <div key={entry.key} className="rounded-xl border bg-muted/30 p-3 space-y-2">
+                <div key={entry.key} className="rounded-xl border bg-muted/30 p-3 space-y-2 min-w-0">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">{label.title}</p>
                       {label.sub && (
                         <p className="text-xs text-muted-foreground truncate">{label.sub}</p>
@@ -235,7 +237,7 @@ export function WorkActivitySelector({ entries, onChange, enabled }: WorkActivit
                       <X className="w-4 h-4" />
                     </button>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-2">
+                  <div className="grid grid-cols-[minmax(0,1fr)_110px] sm:grid-cols-[minmax(0,1fr)_140px] gap-2">
                     <Select
                       value={entry.activityType}
                       onValueChange={(val) => changeActivity(entry.key, val)}
