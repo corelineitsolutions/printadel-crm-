@@ -79,9 +79,16 @@ export default function AttendancePage() {
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const { user, setPunchStatus } = useAuthStore();
   const isAdminOrManager = user?.role === "ADMIN" || user?.role === "MANAGER";
+  const showDailyTracking = user?.role !== "ADMIN";
 
   // Tabs state
-  const [activeTab, setActiveTab] = useState("tracking");
+  const [activeTab, setActiveTab] = useState(showDailyTracking ? "tracking" : "report");
+
+  useEffect(() => {
+    if (!showDailyTracking && activeTab === "tracking") {
+      setActiveTab("report");
+    }
+  }, [showDailyTracking, activeTab]);
 
   // Correction Modal State
   const [showCorrectionDialog, setShowCorrectionDialog] = useState(false);
@@ -564,10 +571,12 @@ export default function AttendancePage() {
       {/* Main Content with Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
         <TabsList className="mb-2">
-          <TabsTrigger value="tracking" className="gap-2">
-            <ListRestart className="w-4 h-4" />
-            Daily Tracking
-          </TabsTrigger>
+          {showDailyTracking && (
+            <TabsTrigger value="tracking" className="gap-2">
+              <ListRestart className="w-4 h-4" />
+              Daily Tracking
+            </TabsTrigger>
+          )}
           <TabsTrigger value="report" className="gap-2">
             <BarChart3 className="w-4 h-4" />
             Attendance Report
