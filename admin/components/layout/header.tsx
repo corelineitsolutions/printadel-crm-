@@ -27,7 +27,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   const [showLogoutModal, setShowLogoutModal] = useState<boolean>(false);
 
   const handleLogoutClick = () => {
-    if (isPunchedIn && user?.role === "EMPLOYEE") {
+    if (isPunchedIn) {
       toast.error("Punch out required", {
         description: "Please punch out and submit your work summary before logging out.",
         duration: 5000,
@@ -92,7 +92,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                     {user?.fullName}
                   </span>
                   <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">
-                    {user?.role}
+                    {user?.roleName || user?.role}
                   </span>
                 </div>
                 <ChevronDown className="w-4 h-4 text-muted-foreground hidden sm:block" />

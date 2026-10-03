@@ -56,6 +56,7 @@ const updateEmployeeSchema = z.object({
   phoneNumber: z.string().nullable().optional(),
   phone: z.string().nullable().optional(),
   role: z.enum(["ADMIN", "MANAGER", "EMPLOYEE"]).optional(),
+  roleName: z.string().nullable().optional(),
   employeeType: z.enum(["Full-time", "Part-time", "Contract"]).optional(),
   designation: z.string().nullable().optional(),
   department: z.string().nullable().optional(),

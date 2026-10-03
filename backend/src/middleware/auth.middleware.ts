@@ -39,7 +39,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
       id: decoded.userId,
       userId: decoded.userId,
       email: decoded.email,
-      role: decoded.role as any,
+      role: (user.role || decoded.role) as any,
     };
 
     next();

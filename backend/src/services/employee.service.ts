@@ -66,6 +66,7 @@ interface CreateEmployeeData {
 }
 
 export interface UpdateEmployeeData {
+  roleName?: string | null;
   fullName?: string;
   email?: string;
   username?: string; // Added from schema
@@ -352,6 +353,7 @@ export const updateEmployee = async (
     }
     // Managers cannot change role or manager assignment
     delete data.role;
+    delete data.roleName;
     delete data.managerId;
 
     // Security Guard: Prevent Managers from updating their own salary/rates
@@ -428,7 +430,17 @@ export const updateEmployee = async (
   if (data.fullName !== undefined && data.fullName.trim() !== "") {
     existingEmployee.fullName = data.fullName.trim();
   }
-  if (data.role !== undefined && data.role !== existingEmployee.role) {
+  if (data.roleName !== undefined && data.roleName !== null && data.roleName.trim() !== "") {
+    const customRole = await CustomRole.findOne({ name: data.roleName.trim() }).collation({ locale: "en", strength: 2 });
+    if (!customRole) {
+      throw new Error("Selected role not found");
+    }
+    existingEmployee.role = customRole.baseRole;
+    existingEmployee.roleName = customRole.name;
+  } else if (data.roleName !== undefined) {
+    if (data.role !== undefined) existingEmployee.role = data.role;
+    existingEmployee.roleName = null;
+  } else if (data.role !== undefined && data.role !== existingEmployee.role) {
     existingEmployee.role = data.role;
     existingEmployee.roleName = null;
   }
@@ -548,6 +560,26 @@ function isDuplicateKeyError(error: any) {
 }
 
 // Get all custom roles
+const DEFAULT_CUSTOM_ROLES: { name: string; baseRole: UserRole }[] = [
+  { name: "HR", baseRole: UserRole.ADMIN },
+];
+
+export const ensureDefaultRoles = async () => {
+  for (const role of DEFAULT_CUSTOM_ROLES) {
+    let existing = await CustomRole.findOne({ name: role.name }).collation({ locale: "en", strength: 2 });
+    if (!existing) {
+      existing = await CustomRole.create(role);
+    } else if (existing.baseRole !== role.baseRole) {
+      existing.baseRole = role.baseRole;
+      await existing.save();
+    }
+    await User.updateMany(
+      { roleName: existing.name, role: { $ne: role.baseRole } },
+      { $set: { role: role.baseRole } }
+    );
+  }
+};
+
 export const getAllCustomRoles = async () => {
   return CustomRole.find().select("id name baseRole").sort({ name: 1 });
 };

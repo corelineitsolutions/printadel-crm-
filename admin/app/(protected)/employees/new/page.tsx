@@ -53,7 +53,10 @@ const employeeSchema = z.object({
   address: z.string().optional(),
   role: z.enum(["ADMIN", "MANAGER", "EMPLOYEE"]),
   roleName: z.string().optional(),
-  employeeType: z.enum(["Full-time", "Part-time", "Contract"]).default("Full-time"),
+  employeeType: z.preprocess(
+    (v) => (typeof v === "string" && v !== "" ? v : "Full-time"),
+    z.enum(["Full-time", "Part-time", "Contract"])
+  ),
   designation: z.string().optional(),
   department: z.string().optional(),
   managerId: z.string().optional(),
@@ -113,6 +116,7 @@ export default function NewEmployeePage() {
   const customRoles: CustomRole[] = customRolesData?.data || [];
 
   const handleRoleChange = (value: string) => {
+    if (!value) return;
     if (value.startsWith(CUSTOM_ROLE_PREFIX)) {
       const name = value.slice(CUSTOM_ROLE_PREFIX.length);
       const customRole = customRoles.find((r) => r.name === name);
@@ -360,6 +364,7 @@ export default function NewEmployeePage() {
                       {customRoles.map((role) => (
                         <SelectItem key={role.name} value={`${CUSTOM_ROLE_PREFIX}${role.name}`}>
                           {role.name}
+                          {role.baseRole === "ADMIN" ? " (full admin access)" : ""}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -400,7 +405,7 @@ export default function NewEmployeePage() {
                 </Label>
                 <Select
                   value={selectedEmployeeType}
-                  onValueChange={(value: any) => setValue("employeeType", value)}
+                  onValueChange={(value: any) => value && setValue("employeeType", value)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select type" />
@@ -421,7 +426,7 @@ export default function NewEmployeePage() {
                 <div className="flex gap-2">
                   <Select
                     value={selectedDepartment || ""}
-                    onValueChange={(value) => setValue("department", value)}
+                    onValueChange={(value) => value && setValue("department", value)}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select department" />
@@ -474,7 +479,7 @@ export default function NewEmployeePage() {
               <div className="space-y-2">
                 <Label htmlFor="managerId">Reporting Manager</Label>
                 <Select
-                  onValueChange={(value) => setValue("managerId", value)}
+                  onValueChange={(value) => value && setValue("managerId", value)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select manager" />
@@ -495,7 +500,7 @@ export default function NewEmployeePage() {
               <Label htmlFor="officeId">Office (punch in/out location)</Label>
               <Select
                 value={watch("officeId") || "none"}
-                onValueChange={(value) => setValue("officeId", value)}
+                onValueChange={(value) => value && setValue("officeId", value)}
               >
                 <SelectTrigger id="officeId">
                   <SelectValue placeholder="Select office" />

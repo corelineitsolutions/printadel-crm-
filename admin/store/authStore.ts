@@ -6,6 +6,7 @@ interface User {
   email: string;
   fullName: string;
   role: "ADMIN" | "MANAGER" | "EMPLOYEE";
+  roleName?: string | null;
   employeeId?: string;
   designation?: string;
   department?: string;

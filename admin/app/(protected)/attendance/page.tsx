@@ -87,16 +87,9 @@ export default function AttendancePage() {
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const { user, setPunchStatus, markActivityLoggedToday } = useAuthStore();
   const isAdminOrManager = user?.role === "ADMIN" || user?.role === "MANAGER";
-  const showDailyTracking = user?.role !== "ADMIN";
 
   // Tabs state
-  const [activeTab, setActiveTab] = useState(showDailyTracking ? "tracking" : "report");
-
-  useEffect(() => {
-    if (!showDailyTracking && activeTab === "tracking") {
-      setActiveTab("report");
-    }
-  }, [showDailyTracking, activeTab]);
+  const [activeTab, setActiveTab] = useState("tracking");
 
   // Correction Modal State
   const [showCorrectionDialog, setShowCorrectionDialog] = useState(false);
@@ -168,7 +161,6 @@ export default function AttendancePage() {
 
   // Ask for location permission as soon as an employee opens the page
   useEffect(() => {
-    if (!showDailyTracking) return;
     if (!navigator.geolocation) {
       setLocationError("Geolocation is not supported by your browser");
       return;
@@ -202,7 +194,7 @@ export default function AttendancePage() {
     return () => {
       permissionStatus?.removeEventListener("change", handlePermissionChange);
     };
-  }, [showDailyTracking, requestLocation]);
+  }, [requestLocation]);
 
   // Fetch today's attendance
   const { data: attendance, isLoading } = useQuery({
@@ -608,12 +600,10 @@ export default function AttendancePage() {
       {/* Main Content with Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
         <TabsList className="mb-2 h-auto w-full flex flex-wrap justify-start gap-1 sm:w-auto sm:inline-flex">
-          {showDailyTracking && (
-            <TabsTrigger value="tracking" className="gap-2">
-              <ListRestart className="w-4 h-4" />
-              Daily Tracking
-            </TabsTrigger>
-          )}
+          <TabsTrigger value="tracking" className="gap-2">
+            <ListRestart className="w-4 h-4" />
+            Daily Tracking
+          </TabsTrigger>
           <TabsTrigger value="report" className="gap-2">
             <BarChart3 className="w-4 h-4" />
             Attendance Report
@@ -626,8 +616,7 @@ export default function AttendancePage() {
 
         {/* Tab 1: Daily Tracking (Existing View) */}
         <TabsContent value="tracking" className="space-y-6">
-          {/* Main Attendance Card + Stats (Hidden for Admin) */}
-          {user?.role !== "ADMIN" && (
+          {/* Main Attendance Card + Stats */}
             <div className="grid gap-6 md:grid-cols-3">
               {/* Punch In/Out Card */}
               <Card className="md:col-span-2">
@@ -895,10 +884,8 @@ export default function AttendancePage() {
                 </Card>
               </div>
             </div>
-          )}
 
-          {/* Attendance History (Hidden for Admin) */}
-          {user?.role !== "ADMIN" && (
+          {/* Attendance History */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
@@ -990,7 +977,6 @@ export default function AttendancePage() {
                 </div>
               </CardContent>
             </Card>
-          )}
         </TabsContent>
 
         {/* Tab 2: Attendance Report (Detailed Range Analysis) */}

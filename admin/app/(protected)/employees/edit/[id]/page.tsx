@@ -24,12 +24,28 @@ import { employeeAPI, officeAPI } from "@/lib/api";
 import { toast } from "sonner";
 import { useAuthStore } from "@/store/authStore";
 
+type BaseRole = "ADMIN" | "MANAGER" | "EMPLOYEE";
+
+interface CustomRole {
+  _id?: string;
+  id?: string;
+  name: string;
+  baseRole: BaseRole;
+}
+
+const CUSTOM_ROLE_PREFIX = "custom:";
+const EMPLOYEE_TYPES = ["Full-time", "Part-time", "Contract"] as const;
+
 const employeeSchema = z.object({
   email: z.string().email("Invalid email address"),
   fullName: z.string().min(2, "Full name is required"),
   phoneNumber: z.string().optional(),
   role: z.enum(["ADMIN", "MANAGER", "EMPLOYEE"]),
-  employeeType: z.enum(["Full-time", "Part-time", "Contract"]).default("Full-time"),
+  roleName: z.string().optional(),
+  employeeType: z.preprocess(
+    (v) => (typeof v === "string" && v !== "" ? v : "Full-time"),
+    z.enum(EMPLOYEE_TYPES)
+  ),
   designation: z.string().optional(),
   department: z.string().optional(),
   managerId: z.string().optional(),
@@ -64,7 +80,32 @@ export default function EditEmployeePage() {
   });
 
   const selectedRole = watch("role");
+  const selectedRoleName = watch("roleName");
   const selectedEmployeeType = watch("employeeType") || "Full-time";
+  const roleSelectValue = selectedRoleName ? `${CUSTOM_ROLE_PREFIX}${selectedRoleName}` : selectedRole;
+
+  const { data: customRolesData } = useQuery({
+    queryKey: ["customRoles"],
+    queryFn: async () => {
+      const response = await employeeAPI.getAllCustomRoles();
+      return response.data;
+    },
+  });
+  const customRoles: CustomRole[] = customRolesData?.data || [];
+
+  const handleRoleChange = (value: string) => {
+    if (!value) return;
+    if (value.startsWith(CUSTOM_ROLE_PREFIX)) {
+      const name = value.slice(CUSTOM_ROLE_PREFIX.length);
+      const customRole = customRoles.find((r) => r.name === name);
+      if (!customRole) return;
+      setValue("role", customRole.baseRole);
+      setValue("roleName", customRole.name);
+    } else {
+      setValue("role", value as BaseRole);
+      setValue("roleName", "");
+    }
+  };
 
   // Fetch employee data
   const { data: employeeData, isLoading: loadingEmployee } = useQuery({
@@ -83,7 +124,10 @@ export default function EditEmployeePage() {
         fullName: employeeData.fullName || "",
         phoneNumber: employeeData.phone || "",
         role: employeeData.role || "EMPLOYEE",
-        employeeType: employeeData.employeeType || "Full-time",
+        roleName: employeeData.roleName || "",
+        employeeType: EMPLOYEE_TYPES.includes(employeeData.employeeType)
+          ? employeeData.employeeType
+          : "Full-time",
         designation: employeeData.designation || "",
         department: employeeData.department || "none",
         managerId: employeeData.managerId || "none",
@@ -173,6 +217,7 @@ export default function EditEmployeePage() {
       department: data.department === "none" || !data.department || data.department.trim() === "" ? null : data.department.trim(),
       monthlySalary: salary,
       isActive,
+      roleName: data.roleName || null,
       managerId: data.managerId === "none" || !data.managerId || data.managerId.trim() === "" ? null : data.managerId,
       officeId: data.officeId === "none" || !data.officeId ? null : data.officeId,
       ...(isAdmin && newPassword ? { password: newPassword } : {}),
@@ -352,8 +397,9 @@ export default function EditEmployeePage() {
                   Role <span className="text-red-500">*</span>
                 </Label>
                 <Select
-                  value={selectedRole}
-                  onValueChange={(value: any) => setValue("role", value)}
+                  value={roleSelectValue}
+                  onValueChange={handleRoleChange}
+                  disabled={!isAdmin}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select role" />
@@ -362,6 +408,12 @@ export default function EditEmployeePage() {
                     <SelectItem value="EMPLOYEE">Employee</SelectItem>
                     <SelectItem value="MANAGER">Manager</SelectItem>
                     <SelectItem value="ADMIN">Admin</SelectItem>
+                    {customRoles.map((role) => (
+                      <SelectItem key={role.name} value={`${CUSTOM_ROLE_PREFIX}${role.name}`}>
+                        {role.name}
+                        {role.baseRole === "ADMIN" ? " (full admin access)" : ""}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 {errors.role && (
@@ -386,7 +438,7 @@ export default function EditEmployeePage() {
                 </Label>
                 <Select
                   value={selectedEmployeeType}
-                  onValueChange={(value: any) => setValue("employeeType", value)}
+                  onValueChange={(value: any) => value && setValue("employeeType", value)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select type" />
@@ -406,7 +458,7 @@ export default function EditEmployeePage() {
                 <Label htmlFor="department">Department</Label>
                 <Select
                   value={watch("department") || "none"}
-                  onValueChange={(value) => setValue("department", value)}
+                  onValueChange={(value) => value && setValue("department", value)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select department" />
@@ -450,7 +502,7 @@ export default function EditEmployeePage() {
                 <Label htmlFor="managerId">Reporting Manager</Label>
                 <Select
                   value={watch("managerId") || "none"}
-                  onValueChange={(value) => setValue("managerId", value)}
+                  onValueChange={(value) => value && setValue("managerId", value)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select manager" />
@@ -473,7 +525,7 @@ export default function EditEmployeePage() {
               <Label htmlFor="officeId">Office (punch in/out location)</Label>
               <Select
                 value={watch("officeId") || "none"}
-                onValueChange={(value) => setValue("officeId", value)}
+                onValueChange={(value) => value && setValue("officeId", value)}
               >
                 <SelectTrigger id="officeId">
                   <SelectValue placeholder="Select office" />

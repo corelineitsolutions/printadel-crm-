@@ -4,6 +4,7 @@ import connectDB from "./config/database";
 import { verifyEmailConfig } from "./config/email";
 import http from "http";
 import { initSocket } from "./config/socket";
+import { ensureDefaultRoles } from "./services/employee.service";
 
 /**
  * Server Entry Point
@@ -23,6 +24,10 @@ async function startServer() {
 
     // Connect to MongoDB
     await connectDB();
+
+    await ensureDefaultRoles().catch((err) =>
+      console.error("⚠️  Failed to ensure default roles:", err.message)
+    );
 
     // Verify email configuration (non-blocking)
     verifyEmailConfig();
