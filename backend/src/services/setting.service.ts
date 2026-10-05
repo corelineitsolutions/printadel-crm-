@@ -1,6 +1,10 @@
 import Setting from "../models/Setting";
 import reportsService from "./reports.service";
 import { DEFAULT_HOLIDAYS_WITH_NAMES } from "../utils/holiday.utils";
+import { leaveService } from "./leave.service";
+import { getISTDate } from "../utils/date.utils";
+
+const LEAVE_ALLOCATION_KEYS = ["sickLeave", "casualLeave", "vacationLeave"];
 
 export const settingService = {
     /**
@@ -27,6 +31,11 @@ export const settingService = {
      * Update settings (bulk)
      */
     async updateSettings(settings: Record<string, string>) {
+        const holidaysChanged = "COMPANY_HOLIDAYS" in settings;
+        const previousHolidays = holidaysChanged
+            ? (await Setting.findOne({ key: "COMPANY_HOLIDAYS" }))?.value || JSON.stringify(DEFAULT_HOLIDAYS_WITH_NAMES)
+            : null;
+
         const operations = Object.entries(settings).map(([key, value]) => ({
             updateOne: {
                 filter: { key },
@@ -40,8 +49,13 @@ export const settingService = {
         }
 
         // If holidays were updated, reset the in-memory cache in reports service
-        if ("COMPANY_HOLIDAYS" in settings) {
+        if (holidaysChanged) {
             reportsService.resetHolidayCache();
+            await leaveService.recalculateLeavesForHolidayChange(previousHolidays, settings.COMPANY_HOLIDAYS);
+        }
+
+        if (LEAVE_ALLOCATION_KEYS.some((key) => key in settings)) {
+            await leaveService.applyLeaveAllocationToYear(getISTDate(new Date()).getFullYear());
         }
 
         return this.getSettings();

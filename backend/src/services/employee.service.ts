@@ -14,6 +14,8 @@ import Subtask from "../models/Subtask";
 import CustomRole from "../models/CustomRole";
 import Department from "../models/Department";
 import Office from "../models/Office";
+import { leaveService } from "./leave.service";
+import { getISTDate } from "../utils/date.utils";
 import { EMPLOYEE_DOCUMENT_PREFIX, getEmployeeDocumentUrl as getSignedDocumentUrl } from "../config/r2";
 
 /**
@@ -317,13 +319,7 @@ export const createEmployee = async (
   });
 
   // Create initial leave balance
-  await LeaveBalance.create({
-    userId: employee._id,
-    casualLeave: 12,
-    sickLeave: 12,
-    paidLeave: 18,
-    year: new Date().getFullYear(),
-  });
+  await leaveService.createLeaveBalance(employee._id, getISTDate(new Date()).getFullYear());
 
   return employee;
 };

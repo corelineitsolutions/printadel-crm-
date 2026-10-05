@@ -7,6 +7,7 @@ import { NotificationType } from "../models/Notification";
 import { sendEmail } from "../config/email";
 import Setting from "../models/Setting";
 import { getISTStartOfDay, getISTDate } from "../utils/date.utils";
+import { DEFAULT_HOLIDAYS_WITH_NAMES } from "../utils/holiday.utils";
 
 
 /**
@@ -41,7 +42,96 @@ interface GetLeavesFilters {
   limit?: number;
 }
 
+const DEFAULT_LEAVE_ALLOCATION = { sickLeave: 12, casualLeave: 12, vacationLeave: 15 };
+const LEAVE_ALLOCATION_KEYS = ["sickLeave", "casualLeave", "vacationLeave"] as const;
+const USED_FIELD_BY_TYPE: Record<string, string> = {
+  SICK: "sickLeaveUsed",
+  CASUAL: "casualLeaveUsed",
+  VACATION: "vacationLeaveUsed",
+};
+
+export function parseHolidayDates(value?: string | null): Set<string> {
+  if (!value) return new Set();
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.map((entry: string) => String(entry).split("|")[0].trim()).filter(Boolean));
+  } catch {
+    return new Set();
+  }
+}
+
 export const leaveService = {
+  /**
+   * Annual leave quotas configured in Settings → Leave Policy
+   */
+  async getLeaveAllocation() {
+    const settings = await Setting.find({ key: { $in: [...LEAVE_ALLOCATION_KEYS] } });
+    const allocation = { ...DEFAULT_LEAVE_ALLOCATION };
+    for (const s of settings) {
+      const value = Number(s.value);
+      if (s.value !== "" && Number.isFinite(value) && value >= 0) {
+        allocation[s.key as keyof typeof allocation] = value;
+      }
+    }
+    return allocation;
+  },
+
+  async createLeaveBalance(userId: any, year: number) {
+    const allocation = await this.getLeaveAllocation();
+    return LeaveBalance.create({ userId, year, ...allocation });
+  },
+
+  /**
+   * Push the configured quotas to every employee's balance for the given year.
+   * Used days are kept as they are.
+   */
+  async applyLeaveAllocationToYear(year: number) {
+    const allocation = await this.getLeaveAllocation();
+    await LeaveBalance.updateMany({ year }, { $set: allocation });
+  },
+
+  /**
+   * Recount the days of pending/approved leaves that overlap holidays that were added or removed,
+   * and correct the used balance of approved leaves by the difference.
+   */
+  async recalculateLeavesForHolidayChange(oldValue?: string | null, newValue?: string | null) {
+    const oldDates = parseHolidayDates(oldValue);
+    const newDates = parseHolidayDates(newValue);
+    const changed = [
+      ...[...oldDates].filter((d) => !newDates.has(d)),
+      ...[...newDates].filter((d) => !oldDates.has(d)),
+    ].sort();
+    if (changed.length === 0) return;
+
+    const rangeStart = new Date(`${changed[0]}T00:00:00+05:30`);
+    const rangeEnd = new Date(`${changed[changed.length - 1]}T23:59:59+05:30`);
+
+    const leaves = await Leave.find({
+      status: { $in: [LeaveStatus.PENDING, LeaveStatus.APPROVED] },
+      isHalfDay: { $ne: true },
+      startDate: { $lte: rangeEnd },
+      endDate: { $gte: rangeStart },
+    });
+
+    for (const leave of leaves) {
+      const newDays = await this.calculateWorkingDays(new Date(leave.startDate), new Date(leave.endDate));
+      const diff = newDays - (leave.days || 0);
+      if (diff === 0) continue;
+
+      leave.days = newDays;
+      await leave.save();
+
+      const usedField = USED_FIELD_BY_TYPE[leave.leaveType];
+      if (leave.status === LeaveStatus.APPROVED && usedField) {
+        await LeaveBalance.findOneAndUpdate(
+          { userId: leave.userId, year: getISTDate(new Date(leave.startDate)).getFullYear() },
+          { $inc: { [usedField]: diff } }
+        );
+      }
+    }
+  },
+
   /**
    * Helper: Count actual working days between two dates (excluding Sundays and Holidays)
    */
@@ -76,13 +166,7 @@ export const leaveService = {
   async loadHolidays(): Promise<Set<string>> {
     try {
       const setting = await Setting.findOne({ key: "COMPANY_HOLIDAYS" });
-      if (setting?.value) {
-        const parsed: string[] = JSON.parse(setting.value);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const dates = parsed.map((entry) => entry.split("|")[0].trim());
-          return new Set(dates);
-        }
-      }
+      return parseHolidayDates(setting?.value || JSON.stringify(DEFAULT_HOLIDAYS_WITH_NAMES));
     } catch (err) {
       console.warn("Could not load COMPANY_HOLIDAYS for leave balance check:", err);
     }
@@ -147,10 +231,7 @@ export const leaveService = {
 
     // Create balance if doesn't exist
     if (!leaveBalance) {
-      leaveBalance = await LeaveBalance.create({
-        userId,
-        year: currentYear,
-      });
+      leaveBalance = await this.createLeaveBalance(userId, currentYear);
     }
 
     // Check if user has sufficient balance
@@ -536,10 +617,7 @@ export const leaveService = {
 
     // Create balance if doesn't exist
     if (!balance) {
-      balance = await LeaveBalance.create({
-        userId,
-        year: targetYear,
-      });
+      balance = await this.createLeaveBalance(userId, targetYear);
     }
 
     // Calculate available balances

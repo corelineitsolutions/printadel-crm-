@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Building2, MapPin, Clock, Mail, Bell, Loader2, CalendarDays, Trash2, Plus } from "lucide-react";
+import { Settings, Clock, Bell, Loader2, CalendarDays, Trash2, Plus, Pencil, Check, X } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
@@ -26,6 +26,9 @@ export default function SettingsPage() {
   const [holidays, setHolidays] = useState<{ name: string; date: string }[]>([]);
   const [newHolidayName, setNewHolidayName] = useState("");
   const [newHolidayDate, setNewHolidayDate] = useState("");
+  const [editingHolidayDate, setEditingHolidayDate] = useState<string | null>(null);
+  const [editHolidayName, setEditHolidayName] = useState("");
+  const [editHolidayDate, setEditHolidayDate] = useState("");
 
   // Fetch settings
   const { data: settings, isLoading } = useQuery({
@@ -43,6 +46,9 @@ export default function SettingsPage() {
     onSuccess: () => {
       toast.success("Settings updated successfully");
       queryClient.invalidateQueries({ queryKey: ["settings"] });
+      ["leaveBalance", "myLeaves", "pendingLeaves", "approvedLeaves"].forEach((key) =>
+        queryClient.invalidateQueries({ queryKey: [key] })
+      );
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || "Failed to update settings");
@@ -76,8 +82,49 @@ export default function SettingsPage() {
     }
   }, [settings, setValue]);
 
-  const onSave = (data: any) => {
-    updateSettingsMutation.mutate(data);
+  const saveFields = (keys: string[]) =>
+    handleSubmit((data: any) => {
+      const payload: Record<string, string> = {};
+      keys.forEach((key) => {
+        payload[key] = data[key] === undefined || data[key] === null ? "" : String(data[key]);
+      });
+      updateSettingsMutation.mutate(payload);
+    });
+
+  const serializeHolidays = (list: { name: string; date: string }[]) =>
+    JSON.stringify(list.map((h) => `${h.date}|${h.name}`));
+  const holidaysDirty = !!settings && serializeHolidays(holidays) !== settings.COMPANY_HOLIDAYS;
+
+  const startEditHoliday = (h: { name: string; date: string }) => {
+    setEditingHolidayDate(h.date);
+    setEditHolidayName(h.name);
+    setEditHolidayDate(h.date);
+  };
+
+  const cancelEditHoliday = () => {
+    setEditingHolidayDate(null);
+    setEditHolidayName("");
+    setEditHolidayDate("");
+  };
+
+  const saveEditHoliday = () => {
+    if (!editHolidayDate) {
+      toast.error("Please select a date");
+      return;
+    }
+    if (editHolidayDate !== editingHolidayDate && holidays.some((h) => h.date === editHolidayDate)) {
+      toast.error("This date is already in the holiday list");
+      return;
+    }
+    const updated = holidays
+      .map((h) =>
+        h.date === editingHolidayDate
+          ? { date: editHolidayDate, name: editHolidayName.trim() || editHolidayDate }
+          : h
+      )
+      .sort((a, b) => a.date.localeCompare(b.date));
+    setHolidays(updated);
+    cancelEditHoliday();
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
@@ -126,9 +173,8 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="company" className="space-y-4">
-        <TabsList className="flex-wrap">
-          <TabsTrigger value="company">Company</TabsTrigger>
+      <Tabs defaultValue="attendance" className="space-y-4">
+        <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="attendance">Attendance</TabsTrigger>
           <TabsTrigger value="leave">Leave Policy</TabsTrigger>
           <TabsTrigger value="payroll">Payroll</TabsTrigger>
@@ -136,93 +182,9 @@ export default function SettingsPage() {
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
         </TabsList>
 
-        {/* Company Settings */}
-        <TabsContent value="company">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Building2 className="w-5 h-5" />
-                Company Information
-              </CardTitle>
-              <CardDescription>
-                Update your company details and branding
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit(onSave)} className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="companyName">Company Name</Label>
-                    <Input id="companyName" {...register("companyName")} placeholder="Company CRM" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="companyEmail">Company Email</Label>
-                    <Input id="companyEmail" type="email" {...register("companyEmail")} placeholder="info@company.com" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="companyAddress">Address</Label>
-                  <Input id="companyAddress" {...register("companyAddress")} placeholder="123 Business Street, Tech City" />
-                </div>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="companyPhone">Phone</Label>
-                    <Input id="companyPhone" {...register("companyPhone")} placeholder="+1 234 567 8900" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="companyWebsite">Website</Label>
-                    <Input id="companyWebsite" {...register("companyWebsite")} placeholder="https://company.com" />
-                  </div>
-                </div>
-                <Button type="submit" disabled={updateSettingsMutation.isPending}>
-                  {updateSettingsMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  Save Company Settings
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
         {/* Attendance Settings */}
         <TabsContent value="attendance">
           <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MapPin className="w-5 h-5" />
-                  Office Location (Geofence)
-                </CardTitle>
-                <CardDescription>
-                  Set office coordinates for location-based attendance
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleSubmit(onSave)} className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="OFFICE_LAT">Latitude</Label>
-                      <Input id="OFFICE_LAT" type="number" step="any" {...register("OFFICE_LAT")} placeholder="40.7128" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="OFFICE_LNG">Longitude</Label>
-                      <Input id="OFFICE_LNG" type="number" step="any" {...register("OFFICE_LNG")} placeholder="-74.0060" />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="GEOFENCE_RADIUS">Geofence Radius (meters)</Label>
-                    <Input id="GEOFENCE_RADIUS" type="number" {...register("GEOFENCE_RADIUS")} placeholder="100" />
-                    <p className="text-sm text-muted-foreground">
-                      Employees must be within this radius to punch in/out
-                    </p>
-                  </div>
-                  <Button type="submit" disabled={updateSettingsMutation.isPending}>
-                    {updateSettingsMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                    Save Location Settings
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -234,7 +196,7 @@ export default function SettingsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleSubmit(onSave)} className="space-y-4">
+                <form onSubmit={saveFields(["SHIFT_START_TIME", "gracePeriod"])} className="space-y-4">
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="SHIFT_START_TIME">Shift Start Time (24h format)</Label>
@@ -263,23 +225,23 @@ export default function SettingsPage() {
             <CardHeader>
               <CardTitle>Annual Leave Allocation</CardTitle>
               <CardDescription>
-                Set annual leave quotas for different leave types
+                Set annual leave quotas for different leave types. Saving updates this year&apos;s balance for every employee (days already used are kept).
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleSubmit(onSave)} className="space-y-4">
+              <form onSubmit={saveFields(["sickLeave", "casualLeave", "vacationLeave"])} className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-3">
                   <div className="space-y-2">
                     <Label htmlFor="sickLeave">Sick Leave (days/year)</Label>
-                    <Input id="sickLeave" type="number" {...register("sickLeave")} placeholder="12" />
+                    <Input id="sickLeave" type="number" min="0" {...register("sickLeave")} placeholder="12" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="casualLeave">Casual Leave (days/year)</Label>
-                    <Input id="casualLeave" type="number" {...register("casualLeave")} placeholder="12" />
+                    <Input id="casualLeave" type="number" min="0" {...register("casualLeave")} placeholder="12" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="vacationLeave">Vacation Leave (days/year)</Label>
-                    <Input id="vacationLeave" type="number" {...register("vacationLeave")} placeholder="15" />
+                    <Input id="vacationLeave" type="number" min="0" {...register("vacationLeave")} placeholder="15" />
                   </div>
                 </div>
                 <Button type="submit" disabled={updateSettingsMutation.isPending}>
@@ -373,50 +335,93 @@ export default function SettingsPage() {
                   </div>
                 ) : (
                   <div className="border rounded-xl divide-y overflow-hidden">
-                    {holidays.map((h) => (
-                      <div
-                        key={h.date}
-                        className="flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors"
-                      >
-                        <div>
-                          <p className="font-medium text-sm">{h.name || h.date}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(h.date + "T00:00:00").toLocaleDateString("en-IN", {
-                              weekday: "long",
-                              year: "numeric",
-                              month: "long",
-                              day: "numeric",
-                            })}
-                          </p>
+                    {holidays.map((h) =>
+                      editingHolidayDate === h.date ? (
+                        <div key={h.date} className="flex flex-col sm:flex-row sm:items-end gap-2 px-4 py-3 bg-muted/30">
+                          <div className="flex-1 space-y-1 min-w-0">
+                            <Label className="text-xs">Holiday Name</Label>
+                            <Input value={editHolidayName} onChange={(e) => setEditHolidayName(e.target.value)} />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Date</Label>
+                            <Input type="date" value={editHolidayDate} onChange={(e) => setEditHolidayDate(e.target.value)} />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button type="button" size="sm" className="gap-1" onClick={saveEditHoliday}>
+                              <Check className="w-4 h-4" />
+                              Update
+                            </Button>
+                            <Button type="button" size="sm" variant="outline" className="gap-1" onClick={cancelEditHoliday}>
+                              <X className="w-4 h-4" />
+                              Cancel
+                            </Button>
+                          </div>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => setHolidays(holidays.filter((x) => x.date !== h.date))}
+                      ) : (
+                        <div
+                          key={h.date}
+                          className="flex items-center justify-between gap-2 px-4 py-3 hover:bg-muted/30 transition-colors"
                         >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ))}
+                          <div className="min-w-0">
+                            <p className="font-medium text-sm truncate">{h.name || h.date}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(h.date + "T00:00:00").toLocaleDateString("en-IN", {
+                                weekday: "long",
+                                year: "numeric",
+                                month: "long",
+                                day: "numeric",
+                              })}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              title="Edit holiday"
+                              onClick={() => startEditHoliday(h)}
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              title="Delete holiday"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => setHolidays(holidays.filter((x) => x.date !== h.date))}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      )
+                    )}
                   </div>
                 )}
               </div>
 
-              <Button
-                type="button"
-                className="w-full sm:w-auto"
-                disabled={updateSettingsMutation.isPending}
-                onClick={() => {
-                  const serialized = holidays.map((h) => `${h.date}|${h.name}`);
-                  updateSettingsMutation.mutate({
-                    COMPANY_HOLIDAYS: JSON.stringify(serialized),
-                  });
-                }}
-              >
-                {updateSettingsMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Save Holiday Calendar
-              </Button>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <Button
+                  type="button"
+                  className="w-full sm:w-auto"
+                  disabled={updateSettingsMutation.isPending || editingHolidayDate !== null}
+                  onClick={() => {
+                    updateSettingsMutation.mutate({ COMPANY_HOLIDAYS: serializeHolidays(holidays) });
+                  }}
+                >
+                  {updateSettingsMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Save Holiday Calendar
+                </Button>
+                {holidaysDirty && (
+                  <span className="text-xs font-medium text-amber-600">
+                    You have unsaved holiday changes
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Holidays are not counted as leave days. When you save, pending and approved leaves that include an added or removed holiday are recounted, and employee balances are adjusted.
+              </p>
 
             </CardContent>
           </Card>
@@ -432,7 +437,10 @@ export default function SettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleSubmit(onSave)} className="space-y-6">
+              <form
+                onSubmit={saveFields(["defaultHourlyRate", "payrollDay", "taxRate", "payrollBanner", "digitalSign", "officialStamp"])}
+                className="space-y-6"
+              >
                 <div className="grid gap-6 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="defaultHourlyRate">Default Hourly Rate (₹)</Label>

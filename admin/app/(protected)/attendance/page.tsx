@@ -77,6 +77,17 @@ const formatWorkingHours = (hours: number | undefined) => {
   return `${h}h ${m}m`;
 };
 
+type AttendanceBreak = { startTime: string; endTime?: string; durationMinutes?: number };
+
+const getBreakMinutes = (b: AttendanceBreak, now: Date) => {
+  if (b.endTime && typeof b.durationMinutes === "number") return b.durationMinutes;
+  const end = b.endTime ? new Date(b.endTime) : now;
+  return Math.max(0, Math.floor((end.getTime() - new Date(b.startTime).getTime()) / 60000));
+};
+
+const formatMinutes = (minutes: number) =>
+  minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${minutes}m`;
+
 export default function AttendancePage() {
   const queryClient = useQueryClient();
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -523,6 +534,9 @@ export default function AttendancePage() {
   const isPunchedIn = attendance?.punchInTime && !attendance?.punchOutTime;
   const isPunchedOut = attendance?.punchOutTime;
   const isOnBreak = !!attendance?.breaks?.some((b: any) => !b.endTime);
+  const todayBreaks: AttendanceBreak[] = attendance?.breaks || [];
+  const activeBreak = todayBreaks.find((b) => !b.endTime);
+  const totalBreakMinutes = todayBreaks.reduce((sum, b) => sum + getBreakMinutes(b, currentTime), 0);
 
   // Calculate working time
   const calculateWorkingTime = () => {
@@ -768,6 +782,12 @@ export default function AttendancePage() {
                             <Coffee className="w-5 h-5 animate-pulse" />
                             <span className="font-semibold">You are on break</span>
                           </div>
+                          {activeBreak && (
+                            <p className="text-sm font-medium text-orange-700 mb-1">
+                              Started at {format(new Date(activeBreak.startTime), "hh:mm a")} ·{" "}
+                              {formatMinutes(getBreakMinutes(activeBreak, currentTime))} so far
+                            </p>
+                          )}
                           <p className="text-sm text-orange-600">
                             Break time is not counted in working hours
                           </p>
@@ -830,6 +850,39 @@ export default function AttendancePage() {
                         <p className="font-semibold text-green-600">
                           {calculateWorkingTime()}
                         </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {todayBreaks.length > 0 && (
+                    <div className="mt-6 pt-6 border-t">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-semibold flex items-center gap-2">
+                          <Coffee className="w-4 h-4 text-orange-600" />
+                          Breaks Today ({todayBreaks.length})
+                        </p>
+                        <span className="text-xs font-medium text-orange-700 bg-orange-50 border border-orange-200 rounded-full px-2 py-0.5">
+                          Total {formatMinutes(totalBreakMinutes)}
+                        </span>
+                      </div>
+                      <div className="space-y-2">
+                        {todayBreaks.map((b, idx) => (
+                          <div
+                            key={`${b.startTime}-${idx}`}
+                            className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm"
+                          >
+                            <span className="text-muted-foreground">Break {idx + 1}</span>
+                            <span className="font-medium">
+                              {format(new Date(b.startTime), "hh:mm a")} –{" "}
+                              {b.endTime ? format(new Date(b.endTime), "hh:mm a") : (
+                                <span className="text-orange-600">Ongoing</span>
+                              )}
+                            </span>
+                            <span className="font-semibold text-orange-700 tabular-nums">
+                              {formatMinutes(getBreakMinutes(b, currentTime))}
+                            </span>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
@@ -1212,6 +1265,7 @@ export default function AttendancePage() {
                           <th className="px-4 py-3 text-left font-medium">Employee / Date</th>
                           <th className="px-4 py-3 text-center font-medium">Punch In</th>
                           <th className="px-4 py-3 text-center font-medium">Punch Out</th>
+                          <th className="px-4 py-3 text-center font-medium">Breaks</th>
                           <th className="px-4 py-3 text-center font-medium">Working Hrs</th>
                           <th className="px-4 py-3 text-left font-medium">Work Summary</th>
                           <th className="px-4 py-3 text-center font-medium">Status</th>
@@ -1248,6 +1302,22 @@ export default function AttendancePage() {
                             </td>
                             <td className="px-4 py-3 text-center whitespace-nowrap">
                               {record.punchOutTime ? format(new Date(record.punchOutTime), "hh:mm a") : "—"}
+                            </td>
+                            <td className="px-4 py-3 text-center whitespace-nowrap">
+                              {record.breaks?.length ? (
+                                <div className="flex flex-col items-center gap-0.5 text-xs">
+                                  {record.breaks.map((b: AttendanceBreak, idx: number) => (
+                                    <span key={`${b.startTime}-${idx}`}>
+                                      {format(new Date(b.startTime), "hh:mm a")} –{" "}
+                                      {b.endTime ? format(new Date(b.endTime), "hh:mm a") : "Ongoing"}
+                                      <span className="text-muted-foreground"> ({formatMinutes(getBreakMinutes(b, currentTime))})</span>
+                                    </span>
+                                  ))}
+                                  <span className="font-semibold text-orange-700">
+                                    Total {formatMinutes(record.breaks.reduce((sum: number, b: AttendanceBreak) => sum + getBreakMinutes(b, currentTime), 0))}
+                                  </span>
+                                </div>
+                              ) : "—"}
                             </td>
                             <td className="px-4 py-3 text-center font-semibold whitespace-nowrap">
                               {formatWorkingHours(record.workingHours)}

@@ -227,7 +227,7 @@ export default function LeavePage() {
                 {balance?.sickLeaveAvailable || 0}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                of {balance?.sickLeaveBalance || 12} available
+                of {balance?.sickLeave ?? 0} available
               </p>
             </CardContent>
           </Card>
@@ -242,7 +242,7 @@ export default function LeavePage() {
                 {balance?.casualLeaveAvailable || 0}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                of {balance?.casualLeaveBalance || 12} available
+                of {balance?.casualLeave ?? 0} available
               </p>
             </CardContent>
           </Card>
@@ -257,7 +257,7 @@ export default function LeavePage() {
                 {balance?.vacationLeaveAvailable || 0}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                of {balance?.vacationLeaveBalance || 15} available
+                of {balance?.vacationLeave ?? 0} available
               </p>
             </CardContent>
           </Card>
