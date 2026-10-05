@@ -21,7 +21,24 @@ import { savePunchOutImages } from "../utils/image.utils";
 interface Location {
   lat: number;
   lng: number;
+  accuracy?: number; // metres, as reported by the browser
   address?: string;
+}
+
+// Desktop browsers locate via Wi-Fi/IP and can be off by hundreds of metres.
+// A punch is accepted when the reported accuracy circle reaches the geofence,
+// but the tolerance is capped so very rough fixes are still rejected.
+const MAX_ACCURACY_TOLERANCE_M = Number(process.env.GEOFENCE_MAX_ACCURACY_M) || 1000;
+
+function accuracyTolerance(location: Location): number {
+  const accuracy = Number(location.accuracy);
+  if (!Number.isFinite(accuracy) || accuracy <= 0) return 0;
+  return Math.min(accuracy, MAX_ACCURACY_TOLERANCE_M);
+}
+
+function isWithinRadius(location: Location, lat: number, lng: number, radius: number) {
+  const distance = calculateDistance(location.lat, location.lng, lat, lng);
+  return { distance, ok: distance - accuracyTolerance(location) <= radius };
 }
 
 /**
@@ -73,14 +90,7 @@ async function validateLocation(location: Location): Promise<boolean> {
     return true;
   }
 
-  const distance = calculateDistance(
-    location.lat,
-    location.lng,
-    officeLat,
-    officeLng
-  );
-
-  return distance <= geofenceRadius;
+  return isWithinRadius(location, officeLat, officeLng, geofenceRadius).ok;
 }
 
 /**
@@ -106,10 +116,15 @@ async function assertWithinOffice(userId: string, location: Location, action: "p
       throw new Error(`Your assigned office "${office.name}" is inactive. Please contact your administrator.`);
     }
     const radius = office.radiusMeters || 100;
-    const distance = calculateDistance(location.lat, location.lng, office.latitude, office.longitude);
-    if (distance > radius) {
+    const { distance, ok } = isWithinRadius(location, office.latitude, office.longitude, radius);
+    if (!ok) {
+      const accuracy = Number(location.accuracy);
+      const accuracyNote =
+        Number.isFinite(accuracy) && accuracy > MAX_ACCURACY_TOLERANCE_M
+          ? ` Your device location is too imprecise (±${Math.round(accuracy)} m). Turn on Wi-Fi and Windows location services, or use your phone.`
+          : "";
       throw new Error(
-        `You are ${Math.round(distance)} m away from ${office.name}. You must be within ${radius} m of your office to ${action}.`
+        `You are ${Math.round(distance)} m away from ${office.name}. You must be within ${radius} m of your office to ${action}.${accuracyNote}`
       );
     }
     return;

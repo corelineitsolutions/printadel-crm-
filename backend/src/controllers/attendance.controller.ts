@@ -52,6 +52,7 @@ const punchInSchema = z.object({
   location: z.object({
     lat: z.number(),
     lng: z.number(),
+    accuracy: z.number().nonnegative().optional(),
     address: z.string().optional(),
   }),
   isWFH: z.boolean().optional(),
@@ -62,6 +63,7 @@ const punchOutSchema = z.object({
   location: z.object({
     lat: z.number(),
     lng: z.number(),
+    accuracy: z.number().nonnegative().optional(),
     address: z.string().optional(),
   }),
   workSummary: z.string().optional(),

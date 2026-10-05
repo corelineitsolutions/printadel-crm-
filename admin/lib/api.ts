@@ -44,9 +44,9 @@ export const authAPI = {
 
 // Attendance API
 export const attendanceAPI = {
-  punchIn: (location: { lat: number; lng: number }, isWFH: boolean = false) =>
+  punchIn: (location: { lat: number; lng: number; accuracy?: number }, isWFH: boolean = false) =>
     api.post("/attendance/punch-in", { location, isWFH }),
-  punchOut: (location: { lat: number; lng: number }, workSummary?: string, workImages?: string[]) =>
+  punchOut: (location: { lat: number; lng: number; accuracy?: number }, workSummary?: string, workImages?: string[]) =>
     api.post("/attendance/punch-out", { location, workSummary, workImages }),
   startBreak: () => api.post("/attendance/start-break"),
   endBreak: () => api.post("/attendance/end-break"),

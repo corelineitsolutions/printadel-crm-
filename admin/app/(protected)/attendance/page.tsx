@@ -68,6 +68,7 @@ import Link from "next/link";
 interface Location {
   lat: number;
   lng: number;
+  accuracy?: number;
 }
 
 const formatWorkingHours = (hours: number | undefined) => {
@@ -148,6 +149,7 @@ export default function AttendancePage() {
         setLocation({
           lat: position.coords.latitude,
           lng: position.coords.longitude,
+          accuracy: Math.round(position.coords.accuracy),
         });
         setLocationError(null);
         setLocationPermission("granted");
@@ -683,11 +685,31 @@ export default function AttendancePage() {
                           </Button>
                         </div>
                       ) : location ? (
-                        <div className="flex items-center gap-2 text-sm text-green-600">
-                          <CheckCircle className="w-4 h-4" />
-                          <span className="truncate">
-                            Office Geofence OK
-                          </span>
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 text-sm text-green-600 min-w-0">
+                              <CheckCircle className="w-4 h-4 shrink-0" />
+                              <span className="truncate">
+                                Location detected
+                                {location.accuracy ? ` (±${location.accuracy} m)` : ""}
+                              </span>
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 gap-1 text-xs shrink-0"
+                              onClick={requestLocation}
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                              Refresh
+                            </Button>
+                          </div>
+                          {location.accuracy !== undefined && location.accuracy > 1000 && (
+                            <p className="text-xs text-amber-600">
+                              Location is imprecise. Turn on Wi-Fi and Windows location services, then refresh — or use your phone.
+                            </p>
+                          )}
                         </div>
                       ) : null}
                     </div>
