@@ -23,6 +23,7 @@ const quotationSchema = z.object({
   validUntil: z.string().nullable().optional(),
   notes: z.string().optional(),
   terms: z.string().optional(),
+  assignedTo: z.string().nullable().optional(),
 });
 
 const assignSchema = z.object({

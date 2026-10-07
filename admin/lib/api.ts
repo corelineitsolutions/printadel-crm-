@@ -278,6 +278,7 @@ export interface QuotationPayload {
   validUntil?: string | null;
   notes?: string;
   terms?: string;
+  assignedTo?: string | null;
 }
 
 export const quotationAPI = {

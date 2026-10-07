@@ -27,6 +27,7 @@ export interface QuotationInput {
   validUntil?: string | null;
   notes?: string;
   terms?: string;
+  assignedTo?: string | null;
 }
 
 interface Requester {
@@ -81,6 +82,45 @@ function populateQuotation(query: any) {
     .populate("statusHistory.changedBy", "id fullName");
 }
 
+async function findActiveDesigner(designerId: string) {
+  if (!mongoose.Types.ObjectId.isValid(designerId)) {
+    throw new Error("Quotations can only be assigned to an active designer");
+  }
+  const designer = await User.findById(designerId).select("fullName designation department isActive");
+  const isDesigner = designer && (DESIGNER_MATCH.test(designer.designation || "") || DESIGNER_MATCH.test(designer.department || ""));
+  if (!designer || !designer.isActive || !isDesigner) {
+    throw new Error("Quotations can only be assigned to an active designer");
+  }
+  return designer;
+}
+
+/** Applies an admin's designer choice to the quotation; returns true when the assignee changed. */
+async function applyAssignment(quotation: any, designerId: string | null, requester: Requester) {
+  if (requester.role !== UserRole.ADMIN) throw new Error("Only an admin can assign quotations");
+  const previous = quotation.assignedTo ? String(quotation.assignedTo) : null;
+  if (designerId) {
+    const designer = await findActiveDesigner(designerId);
+    quotation.assignedTo = designer._id;
+    quotation.assignedBy = new mongoose.Types.ObjectId(requester.id);
+  } else {
+    quotation.assignedTo = null;
+    quotation.assignedBy = null;
+  }
+  return previous !== (designerId || null);
+}
+
+async function notifyAssignedDesigner(quotation: any, requester: Requester) {
+  const designerId = quotation.assignedTo ? String(quotation.assignedTo) : null;
+  if (!designerId || designerId === requester.id) return;
+  await createNotification({
+    userId: designerId,
+    type: NotificationType.GENERAL,
+    title: "Quotation Assigned",
+    message: `Quotation ${quotation.quotationNumber} for ${quotation.clientName} has been assigned to you.`,
+    link: "/quotations",
+  }).catch(() => undefined);
+}
+
 async function withScreenshotUrls(quotation: any) {
   const doc = quotation.toObject ? quotation.toObject({ virtuals: true }) : quotation;
   doc.id = String(doc._id);
@@ -106,7 +146,7 @@ export const quotationService = {
 
   async createQuotation(data: QuotationInput, requester: Requester) {
     const totals = computeTotals(data.items, data.discount, data.gstPercent);
-    const quotation = await Quotation.create({
+    const quotation = new Quotation({
       quotationNumber: await generateNextQuotationNumber(),
       subject: data.subject.trim(),
       clientName: data.clientName.trim(),
@@ -122,6 +162,9 @@ export const quotationService = {
       createdBy: requester.id,
       statusHistory: [{ status: QuotationStatus.PENDING, changedBy: requester.id, note: "Quotation created" }],
     });
+    const assigned = data.assignedTo ? await applyAssignment(quotation, data.assignedTo, requester) : false;
+    await quotation.save();
+    if (assigned) await notifyAssignedDesigner(quotation, requester);
     return withScreenshotUrls(await populateQuotation(Quotation.findById(quotation._id)));
   },
 
@@ -187,39 +230,18 @@ export const quotationService = {
       quotation.set(totals);
     }
 
+    const assigned = data.assignedTo !== undefined ? await applyAssignment(quotation, data.assignedTo, requester) : false;
     await quotation.save();
+    if (assigned) await notifyAssignedDesigner(quotation, requester);
     return withScreenshotUrls(await populateQuotation(Quotation.findById(id)));
   },
 
   async assignQuotation(id: string, designerId: string | null, requester: Requester) {
-    if (requester.role !== UserRole.ADMIN) throw new Error("Only an admin can assign quotations");
     const quotation = await Quotation.findById(id);
     if (!quotation) throw new Error("Quotation not found");
-
-    if (designerId) {
-      const designer = await User.findById(designerId).select("fullName designation department isActive");
-      const isDesigner = designer && (DESIGNER_MATCH.test(designer.designation || "") || DESIGNER_MATCH.test(designer.department || ""));
-      if (!designer || !designer.isActive || !isDesigner) {
-        throw new Error("Quotations can only be assigned to an active designer");
-      }
-      quotation.assignedTo = designer._id as any;
-      quotation.assignedBy = new mongoose.Types.ObjectId(requester.id);
-    } else {
-      quotation.assignedTo = null;
-      quotation.assignedBy = null;
-    }
+    const assigned = await applyAssignment(quotation, designerId, requester);
     await quotation.save();
-
-    if (designerId && designerId !== requester.id) {
-      await createNotification({
-        userId: designerId,
-        type: NotificationType.GENERAL,
-        title: "Quotation Assigned",
-        message: `Quotation ${quotation.quotationNumber} for ${quotation.clientName} has been assigned to you.`,
-        link: "/quotations",
-      }).catch(() => undefined);
-    }
-
+    if (assigned) await notifyAssignedDesigner(quotation, requester);
     return withScreenshotUrls(await populateQuotation(Quotation.findById(id)));
   },
 

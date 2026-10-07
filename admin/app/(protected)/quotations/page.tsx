@@ -50,6 +50,7 @@ interface FormState {
   validUntil: string;
   notes: string;
   terms: string;
+  assignedTo: string;
 }
 
 const STATUS_STYLES: Record<QuotationStatus, string> = {
@@ -80,6 +81,7 @@ const emptyForm = (): FormState => ({
   validUntil: "",
   notes: "",
   terms: "",
+  assignedTo: UNASSIGNED,
 });
 
 const toNumber = (value: string) => {
@@ -264,6 +266,7 @@ export default function QuotationsPage() {
       validUntil: q.validUntil ? String(q.validUntil).slice(0, 10) : "",
       notes: q.notes || "",
       terms: q.terms || "",
+      assignedTo: q.assignedTo?._id || q.assignedTo?.id || UNASSIGNED,
     });
     setFormOpen(true);
   };
@@ -292,6 +295,7 @@ export default function QuotationsPage() {
       validUntil: form.validUntil || null,
       notes: form.notes.trim() || undefined,
       terms: form.terms.trim() || undefined,
+      ...(isAdmin && { assignedTo: form.assignedTo === UNASSIGNED ? null : form.assignedTo }),
     });
   };
 
@@ -562,6 +566,30 @@ export default function QuotationsPage() {
                   onChange={(e) => setForm({ ...form, subject: e.target.value })}
                 />
               </div>
+              {isAdmin && (
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label>Assign Designer</Label>
+                  <Select value={form.assignedTo} onValueChange={(v) => v && setForm({ ...form, assignedTo: v })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select designer" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+                      {(designers as any[]).map((d) => (
+                        <SelectItem key={d._id || d.id} value={d._id || d.id}>
+                          {d.fullName}
+                          {d.designation ? ` (${d.designation})` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {(designers as any[]).length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      No designers found. Set an employee&apos;s designation or department to include &quot;Designer&quot;.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">
