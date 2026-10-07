@@ -21,6 +21,8 @@ import {
   Printer,
   Activity,
   MapPin,
+  Briefcase,
+  ChevronDown,
 } from "lucide-react";
 
 interface NavItem {
@@ -30,86 +32,47 @@ interface NavItem {
   roles: string[];
 }
 
-const navItems: NavItem[] = [
+interface NavGroup {
+  id: string;
+  icon: any;
+  label: string;
+  items: NavItem[];
+}
+
+const ALL_ROLES = ["ADMIN", "MANAGER", "EMPLOYEE"];
+
+const navGroups: NavGroup[] = [
   {
-    icon: LayoutDashboard,
-    label: "Dashboard",
-    href: "/dashboard",
-    roles: ["ADMIN", "MANAGER", "EMPLOYEE"],
+    id: "job",
+    icon: Briefcase,
+    label: "Job",
+    items: [
+      { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard", roles: ALL_ROLES },
+      { icon: Printer, label: "Job Cards", href: "/job-cards", roles: ALL_ROLES },
+      { icon: CheckSquare, label: "Tasks", href: "/tasks", roles: ALL_ROLES },
+      { icon: FolderKanban, label: "Projects", href: "/projects", roles: ALL_ROLES },
+      { icon: Users, label: "Employees", href: "/employees", roles: ["ADMIN", "MANAGER"] },
+      { icon: MapPin, label: "Offices", href: "/offices", roles: ["ADMIN"] },
+      { icon: BarChart3, label: "Reports", href: "/reports", roles: ["ADMIN", "MANAGER"] },
+      { icon: Settings, label: "Settings", href: "/settings", roles: ["ADMIN"] },
+    ],
   },
   {
-    icon: Printer,
-    label: "Job Cards",
-    href: "/job-cards",
-    roles: ["ADMIN", "MANAGER", "EMPLOYEE"],
-  },
-  {
-    icon: Activity,
-    label: "Productivity",
-    href: "/productivity",
-    roles: ["ADMIN", "MANAGER", "EMPLOYEE"],
-  },
-  {
+    id: "profile",
     icon: User,
     label: "Profile",
-    href: "/profile",
-    roles: ["ADMIN", "MANAGER", "EMPLOYEE"],
-  },
-  {
-    icon: Clock,
-    label: "Attendance",
-    href: "/attendance",
-    roles: ["ADMIN", "MANAGER", "EMPLOYEE"],
-  },
-  {
-    icon: Calendar,
-    label: "Leave",
-    href: "/leave",
-    roles: ["ADMIN", "MANAGER", "EMPLOYEE"],
-  },
-  {
-    icon: CheckSquare,
-    label: "Tasks",
-    href: "/tasks",
-    roles: ["ADMIN", "MANAGER", "EMPLOYEE"],
-  },
-  {
-    icon: FolderKanban,
-    label: "Projects",
-    href: "/projects",
-    roles: ["ADMIN", "MANAGER","EMPLOYEE"],
-  },
-  {
-    icon: Users,
-    label: "Employees",
-    href: "/employees",
-    roles: ["ADMIN", "MANAGER"],
-  },
-  {
-    icon: MapPin,
-    label: "Offices",
-    href: "/offices",
-    roles: ["ADMIN"],
-  },
-  {
-    icon: IndianRupee,
-    label: "Salary",
-    href: "/payroll",
-    roles: ["ADMIN", "MANAGER", "EMPLOYEE"],
-  },
-  {
-    icon: BarChart3,
-    label: "Reports",
-    href: "/reports",
-    roles: ["ADMIN", "MANAGER"],
-  },
-  {
-    icon: Settings,
-    label: "Settings",
-    href: "/settings",
-    roles: ["ADMIN"],
+    items: [
+      { icon: User, label: "Profile", href: "/profile", roles: ALL_ROLES },
+      { icon: Calendar, label: "Leave", href: "/leave", roles: ALL_ROLES },
+      { icon: Clock, label: "Attendance", href: "/attendance", roles: ALL_ROLES },
+      { icon: Activity, label: "Productivity", href: "/productivity", roles: ALL_ROLES },
+      { icon: IndianRupee, label: "Salary Slips", href: "/payroll", roles: ALL_ROLES },
+    ],
   },
 ];
+
+const isActivePath = (pathname: string, href: string) =>
+  pathname === href || pathname.startsWith(`${href}/`);
 
 interface SidebarProps {
   onClose?: () => void;
@@ -119,17 +82,27 @@ export function Sidebar({ onClose }: SidebarProps = {}) {
   const pathname = usePathname();
   const { user } = useAuthStore();
   const [hydrated, setHydrated] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ job: true, profile: true });
 
   // Handle hydration
   useEffect(() => {
     setHydrated(true);
   }, []);
 
+  // Keep the group that contains the current page expanded
+  useEffect(() => {
+    const activeGroup = navGroups.find((g) => g.items.some((item) => isActivePath(pathname, item.href)));
+    if (activeGroup) setOpenGroups((prev) => (prev[activeGroup.id] ? prev : { ...prev, [activeGroup.id]: true }));
+  }, [pathname]);
+
   // Filter navigation based on user role
   // Show all items during SSR or if role not loaded yet
-  const userNavItems = hydrated && user?.role
-    ? navItems.filter((item) => item.roles.includes(user.role))
-    : navItems;
+  const userNavGroups = navGroups
+    .map((group) => ({
+      ...group,
+      items: hydrated && user?.role ? group.items.filter((item) => item.roles.includes(user.role)) : group.items,
+    }))
+    .filter((group) => group.items.length > 0);
 
   return (
     <aside className="flex h-screen w-64 flex-col fixed left-0 top-0 border-r bg-card z-50 shadow-lg">
@@ -148,25 +121,52 @@ export function Sidebar({ onClose }: SidebarProps = {}) {
 
       {/* Navigation */}
       <nav className="flex-1 p-4 overflow-y-auto">
-        <div className="space-y-1">
-          {userNavItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = pathname === item.href || (item.href === "/payroll" && pathname.startsWith("/payroll"));
-            const displayLabel = item.href === "/payroll" && user?.role === "EMPLOYEE" ? "Salary Slips" : item.label;
+        <div className="space-y-3">
+          {userNavGroups.map((group) => {
+            const GroupIcon = group.icon;
+            const isOpen = openGroups[group.id] ?? true;
+            const hasActiveChild = group.items.some((item) => isActivePath(pathname, item.href));
 
             return (
-              <Link key={item.href} href={item.href} onClick={onClose}>
-                <Button
-                  variant={isActive ? "secondary" : "ghost"}
+              <div key={group.id}>
+                <button
+                  type="button"
+                  onClick={() => setOpenGroups((prev) => ({ ...prev, [group.id]: !isOpen }))}
                   className={cn(
-                    "w-full justify-start gap-3",
-                    isActive && "bg-primary text-primary-foreground hover:bg-primary/90"
+                    "h-auto w-full flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold uppercase tracking-wide transition-colors hover:bg-muted",
+                    hasActiveChild ? "text-primary" : "text-muted-foreground"
                   )}
+                  aria-expanded={isOpen}
                 >
-                  <Icon className="w-5 h-5" />
-                  <span>{displayLabel}</span>
-                </Button>
-              </Link>
+                  <GroupIcon className="w-4 h-4" />
+                  <span className="flex-1 text-left">{group.label}</span>
+                  <ChevronDown className={cn("w-4 h-4 transition-transform", isOpen ? "rotate-0" : "-rotate-90")} />
+                </button>
+
+                {isOpen && (
+                  <div className="mt-1 ml-3 space-y-1 border-l pl-2">
+                    {group.items.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = isActivePath(pathname, item.href);
+
+                      return (
+                        <Link key={item.href} href={item.href} onClick={onClose}>
+                          <Button
+                            variant={isActive ? "secondary" : "ghost"}
+                            className={cn(
+                              "w-full justify-start gap-3",
+                              isActive && "bg-primary text-primary-foreground hover:bg-primary/90"
+                            )}
+                          >
+                            <Icon className="w-5 h-5" />
+                            <span>{item.label}</span>
+                          </Button>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>
