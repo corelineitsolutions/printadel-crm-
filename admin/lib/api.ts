@@ -206,6 +206,10 @@ export const payrollAPI = {
   }) => api.get("/payroll", { params }),
   getStatistics: (month?: number, year?: number) =>
     api.get("/payroll/statistics", { params: { month, year } }),
+  updateSalarySheet: (
+    payrollId: string,
+    data: { daysWorked?: number | null; advanceDeduction?: number; otherDeduction?: number }
+  ) => api.patch(`/payroll/${payrollId}/salary-sheet`, data),
 };
 
 // Task API

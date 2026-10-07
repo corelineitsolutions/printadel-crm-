@@ -9,6 +9,7 @@ import { createNotification } from "./notification.service";
 import { NotificationType } from "../models/Notification";
 import { getISTStartOfDay, getISTEndOfDay, getISTDate } from "../utils/date.utils";
 import { loadCompanyHolidays, isCompanyHoliday } from "../utils/holiday.utils";
+import { computeSalarySheet, FULL_TIME_SHEET_RULE, SalarySheetResult } from "../utils/salarySheet";
 
 /**
  * Payroll Service
@@ -27,10 +28,17 @@ function toISTDateKey(date: Date): string {
 /**
  * Calculate Payroll for a User for a Specific Month
  */
+export interface SalarySheetOverrides {
+  daysWorked?: number | null;
+  advanceDeduction?: number;
+  otherDeduction?: number;
+}
+
 export async function calculatePayroll(
   userId: string,
   month: number,
-  year: number
+  year: number,
+  overrides: SalarySheetOverrides = {}
 ) {
   // 1. Get user details including monthlySalary, hourlyRate, overtimeMultiplier, employeeType, joinDate
   const user = await User.findById(userId).select(
@@ -138,6 +146,7 @@ export async function calculatePayroll(
   let paidLeaveDays = 0;
   let unpaidLeaveDays = 0;
   let lateCount = 0;
+  let notJoinedDays = 0;
   let totalWorkingHours = 0;
   let overtimeHours = 0;
   const dailyBreakdown: any[] = [];
@@ -158,6 +167,7 @@ export async function calculatePayroll(
 
     // Check if employee had joined by this day
     const employeeJoined = !user.joinDate || getISTStartOfDay(new Date(user.joinDate)) <= curDate;
+    if (!employeeJoined) notJoinedDays++;
     // Check if this date is in the future for current ongoing month
     const isFutureDate = getISTStartOfDay(curDate) > todayStartIST;
 
@@ -493,12 +503,40 @@ export async function calculatePayroll(
   }
 
   // Additional payroll components (allowances, bonuses, etc.)
-  const allowances = 0;
+  let allowances = 0;
   const bonuses = 0;
   const baseSalaryForGross = employeeType === "Part-time" ? basicSalary : monthlySalary;
-  const grossPay = round(baseSalaryForGross + extraWorkPay + calculatedOvertimePay + allowances + bonuses);
-  const totalDeductions = round(absentDeduction + lateDeduction);
-  const netPay = round(Math.max(0, attendanceAdjustedSalary + allowances + bonuses));
+  let grossPay = round(baseSalaryForGross + extraWorkPay + calculatedOvertimePay + allowances + bonuses);
+  let totalDeductions = round(absentDeduction + lateDeduction);
+  let netPay = round(Math.max(0, attendanceAdjustedSalary + allowances + bonuses));
+  let overtimePay = calculatedOvertimePay;
+  let sheet: SalarySheetResult | null = null;
+  let daysWorkedManual = false;
+
+  // Full-time employees are paid with the Excel salary sheet structure
+  if (employeeType === "Full-time") {
+    const autoDaysWorked = Math.max(0, calendarDays - notJoinedDays - absentDays);
+    daysWorkedManual = overrides.daysWorked !== undefined && overrides.daysWorked !== null;
+    sheet = computeSalarySheet({
+      salaryRate: monthlySalary,
+      monthDays: calendarDays,
+      daysWorked: daysWorkedManual ? Number(overrides.daysWorked) : autoDaysWorked,
+      advanceDeduction: overrides.advanceDeduction,
+      otherDeduction: overrides.otherDeduction,
+    });
+
+    payrollRule = FULL_TIME_SHEET_RULE;
+    basicSalary = monthlySalary;
+    extraWorkPay = 0;
+    lateDeduction = 0;
+    overtimePay = 0;
+    absentDeduction = round(monthlySalary - sheet.earnedSalary);
+    attendanceAdjustedSalary = sheet.earnedSalary;
+    allowances = round(sheet.hra + sheet.conveyance);
+    grossPay = sheet.grossPay;
+    totalDeductions = sheet.totalDeductions;
+    netPay = sheet.netPay;
+  }
 
   const totalWorkingDays = presentDays;
 
@@ -534,12 +572,50 @@ export async function calculatePayroll(
     attendanceAdjustedSalary,
     allowances,
     bonuses,
-    overtimePay: calculatedOvertimePay,
+    overtimePay,
     grossPay,
     deductions: totalDeductions,
     netPay,
+    salaryRate: sheet?.salaryRate ?? 0,
+    monthDays: sheet?.monthDays ?? 0,
+    daysWorked: sheet?.daysWorked ?? 0,
+    daysWorkedManual,
+    earnedSalary: sheet?.earnedSalary ?? 0,
+    basicDa: sheet?.basicDa ?? 0,
+    hra: sheet?.hra ?? 0,
+    conveyance: sheet?.conveyance ?? 0,
+    epf: sheet?.epf ?? 0,
+    esic: sheet?.esic ?? 0,
+    professionalTax: sheet?.professionalTax ?? 0,
+    advanceDeduction: sheet?.advanceDeduction ?? 0,
+    otherDeduction: sheet?.otherDeduction ?? 0,
     dailyBreakdown,
     user,
+  };
+}
+
+const SHEET_FIELDS = [
+  "salaryRate",
+  "monthDays",
+  "daysWorked",
+  "daysWorkedManual",
+  "earnedSalary",
+  "basicDa",
+  "hra",
+  "conveyance",
+  "epf",
+  "esic",
+  "professionalTax",
+  "advanceDeduction",
+  "otherDeduction",
+] as const;
+
+function sheetOverridesFrom(existing: any): SalarySheetOverrides {
+  if (!existing) return {};
+  return {
+    daysWorked: existing.daysWorkedManual ? existing.daysWorked : null,
+    advanceDeduction: existing.advanceDeduction || 0,
+    otherDeduction: existing.otherDeduction || 0,
   };
 }
 
@@ -551,17 +627,22 @@ export async function generatePayroll(
   month: number,
   year: number
 ) {
-  // Calculate payroll
-  const calculation = await calculatePayroll(userId, month, year);
-
-  // Check if payroll already exists
   const existing = await Payroll.findOne({
     userId,
     month,
     year,
   });
 
+  if (existing && existing.status === PayrollStatus.PAID) {
+    return await Payroll.findById(existing._id)
+      .populate("user", "id fullName employeeId email designation department employeeType gender dateOfBirth joinDate");
+  }
+
+  const calculation = await calculatePayroll(userId, month, year, sheetOverridesFrom(existing));
+  const sheetValues = Object.fromEntries(SHEET_FIELDS.map((key) => [key, (calculation as any)[key]]));
+
   if (existing) {
+    existing.set(sheetValues);
     existing.employeeType = calculation.employeeType;
     existing.payrollRule = calculation.payrollRule;
     existing.hourlyRate = calculation.hourlyRate;
@@ -601,7 +682,7 @@ export async function generatePayroll(
 
     const saved = await existing.save();
     return await Payroll.findById(saved._id)
-      .populate("user", "id fullName employeeId email designation department employeeType");
+      .populate("user", "id fullName employeeId email designation department employeeType gender dateOfBirth joinDate");
   }
 
   // Create new payroll record
@@ -641,6 +722,7 @@ export async function generatePayroll(
     extraWorkDays: calculation.extraWorkDays,
     extraSundayDays: calculation.extraSundayDays,
     holidayWorkDays: calculation.holidayWorkDays,
+    ...sheetValues,
     status: PayrollStatus.DRAFT,
   });
 
@@ -671,6 +753,45 @@ export async function generatePayroll(
   }
 
   return payroll;
+}
+
+/**
+ * Edit the manual columns of a full-time salary sheet row (Days Worked, ADV, OTHER)
+ */
+export async function updateSalarySheet(
+  payrollId: string,
+  changes: {
+    daysWorked?: number | null;
+    advanceDeduction?: number;
+    otherDeduction?: number;
+  }
+) {
+  const payroll = await Payroll.findById(payrollId);
+  if (!payroll) throw new Error("Payroll not found");
+  if (payroll.payrollRule !== FULL_TIME_SHEET_RULE) {
+    throw new Error("Salary sheet editing is only available for full-time payrolls");
+  }
+  if (payroll.status === PayrollStatus.PAID) {
+    throw new Error("Payroll is already paid and cannot be edited");
+  }
+
+  if (changes.daysWorked !== undefined) {
+    if (changes.daysWorked === null) {
+      payroll.daysWorkedManual = false;
+    } else {
+      const monthDays = payroll.monthDays || new Date(payroll.year, payroll.month, 0).getDate();
+      if (changes.daysWorked < 0 || changes.daysWorked > monthDays) {
+        throw new Error(`Days worked must be between 0 and ${monthDays}`);
+      }
+      payroll.daysWorked = changes.daysWorked;
+      payroll.daysWorkedManual = true;
+    }
+  }
+  if (changes.advanceDeduction !== undefined) payroll.advanceDeduction = Math.max(0, changes.advanceDeduction);
+  if (changes.otherDeduction !== undefined) payroll.otherDeduction = Math.max(0, changes.otherDeduction);
+  await payroll.save();
+
+  return generatePayroll(payroll.userId.toString(), payroll.month, payroll.year);
 }
 
 /**
@@ -828,7 +949,7 @@ export async function getPayrollById(
   userUserRole: string
 ) {
   const payroll = await Payroll.findById(payrollId)
-    .populate("user", "id fullName employeeId email designation department phone address employeeType")
+    .populate("user", "id fullName employeeId email designation department phone address employeeType gender dateOfBirth joinDate")
     .populate("processor", "id fullName");
 
   if (!payroll) {
@@ -882,7 +1003,7 @@ export async function getPayrolls(
   if (filters.status) where.status = filters.status;
 
   const payrolls = await Payroll.find(where)
-    .populate("user", "id fullName employeeId email designation department employeeType")
+    .populate("user", "id fullName employeeId email designation department employeeType gender dateOfBirth joinDate")
     .populate("processor", "id fullName")
     .sort({ year: -1, month: -1 });
 

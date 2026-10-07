@@ -11,6 +11,7 @@ import {
   handleGetPayrolls,
   handleGetPayrollStatistics,
   handleCalculatePayroll,
+  handleUpdateSalarySheet,
 } from "../controllers/payroll.controller";
 
 const router = Router();
@@ -40,6 +41,9 @@ router.get("/", handleGetPayrolls);
 
 // Get specific payroll by ID (payslip) - All authenticated users
 router.get("/:id", handleGetPayrollById);
+
+// Edit full-time salary sheet row (days worked, advance, other) - ADMIN, MANAGER
+router.patch("/:id/salary-sheet", requireRoles(UserRole.ADMIN, UserRole.MANAGER), handleUpdateSalarySheet);
 
 // Process payroll (mark as processed) - ADMIN, MANAGER
 router.post("/:id/process", requireRoles(UserRole.ADMIN, UserRole.MANAGER), handleProcessPayroll);

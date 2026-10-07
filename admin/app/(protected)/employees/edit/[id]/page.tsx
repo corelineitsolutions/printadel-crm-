@@ -40,6 +40,9 @@ const employeeSchema = z.object({
   email: z.string().email("Invalid email address"),
   fullName: z.string().min(2, "Full name is required"),
   phoneNumber: z.string().optional(),
+  gender: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  joinDate: z.string().optional(),
   role: z.enum(["ADMIN", "MANAGER", "EMPLOYEE"]),
   roleName: z.string().optional(),
   employeeType: z.preprocess(
@@ -123,6 +126,9 @@ export default function EditEmployeePage() {
         email: employeeData.email || "",
         fullName: employeeData.fullName || "",
         phoneNumber: employeeData.phone || "",
+        gender: employeeData.gender || "",
+        dateOfBirth: employeeData.dateOfBirth ? String(employeeData.dateOfBirth).slice(0, 10) : "",
+        joinDate: employeeData.joinDate ? String(employeeData.joinDate).slice(0, 10) : "",
         role: employeeData.role || "EMPLOYEE",
         roleName: employeeData.roleName || "",
         employeeType: EMPLOYEE_TYPES.includes(employeeData.employeeType)
@@ -213,6 +219,9 @@ export default function EditEmployeePage() {
       fullName: data.fullName?.trim(),
       email: data.email?.trim().toLowerCase(),
       phoneNumber: data.phoneNumber?.trim() || null,
+      gender: data.gender || null,
+      dateOfBirth: data.dateOfBirth || null,
+      joinDate: data.joinDate || undefined,
       designation: data.designation?.trim() || null,
       department: data.department === "none" || !data.department || data.department.trim() === "" ? null : data.department.trim(),
       monthlySalary: salary,
@@ -282,6 +291,30 @@ export default function EditEmployeePage() {
                   {...register("phoneNumber")}
                   placeholder="+1 234 567 8900"
                 />
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="gender">Gender</Label>
+                <select
+                  id="gender"
+                  {...register("gender")}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="">Select gender</option>
+                  <option value="M">Male</option>
+                  <option value="F">Female</option>
+                  <option value="O">Other</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="dateOfBirth">Date of Birth</Label>
+                <Input id="dateOfBirth" type="date" {...register("dateOfBirth")} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="joinDate">Date of Joining</Label>
+                <Input id="joinDate" type="date" {...register("joinDate")} />
               </div>
             </div>
 

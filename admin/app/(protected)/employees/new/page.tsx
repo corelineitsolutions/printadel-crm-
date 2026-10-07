@@ -51,6 +51,9 @@ const employeeSchema = z.object({
   fullName: z.string().min(2, "Full name is required"),
   phoneNumber: z.string().optional(),
   address: z.string().optional(),
+  gender: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  joinDate: z.string().optional(),
   role: z.enum(["ADMIN", "MANAGER", "EMPLOYEE"]),
   roleName: z.string().optional(),
   employeeType: z.preprocess(
@@ -198,6 +201,9 @@ export default function NewEmployeePage() {
         monthlySalary: salary,
         roleName: data.roleName || null,
         address: data.address?.trim() || null,
+        gender: data.gender || null,
+        dateOfBirth: data.dateOfBirth || null,
+        joinDate: data.joinDate || null,
         managerId: data.managerId === "none" || !data.managerId ? null : data.managerId,
         department: data.department === "none" || !data.department ? null : data.department,
         officeId: data.officeId === "none" || !data.officeId ? null : data.officeId,
@@ -326,6 +332,30 @@ export default function NewEmployeePage() {
                   {...register("phoneNumber")}
                   placeholder="+1 234 567 8900"
                 />
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="gender">Gender</Label>
+                <select
+                  id="gender"
+                  {...register("gender")}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="">Select gender</option>
+                  <option value="M">Male</option>
+                  <option value="F">Female</option>
+                  <option value="O">Other</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="dateOfBirth">Date of Birth</Label>
+                <Input id="dateOfBirth" type="date" {...register("dateOfBirth")} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="joinDate">Date of Joining</Label>
+                <Input id="joinDate" type="date" {...register("joinDate")} />
               </div>
             </div>
 

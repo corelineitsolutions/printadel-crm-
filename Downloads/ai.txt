@@ -1,0 +1,44 @@
+Hi Razorpay Support,
+
+We have analyzed our UPI payment export and found a significant issue specifically affecting our ₹299 recurring/AutoPay payments.
+
+In the exported data:
+
+* 1,358 payments are marked failed.
+* 1,338 of these are UPI failures.
+* There are 445 failed ₹299 UPI payment attempts.
+* The main ₹299 failure reasons are:
+
+  * 266 — Customer insufficient balance
+  * 107 — Payment not allowed for this account
+  * 41 — Token is not confirmed for recurring payments
+  * 13 — Customer cancelled / UPI app delay
+  * 10 — Payment timeout
+  * Remaining — other errors
+
+The most concerning pattern is that 106 of the 107 ₹299 "Payment is not allowed for this account" failures occurred on August 31 and September 1, 2026.
+
+We also found 41 ₹299 failures with the message:
+
+"Token is not confirmed for recurring payments."
+
+In addition, there are 69 ₹299 UPI collect transactions currently showing as "created", so we would like to understand whether these transactions are pending at the bank/PSP/UPI AutoPay layer.
+
+The ₹299 transactions are predominantly using the UPI collect flow, and the failure rate increased significantly around August 31 and September 1.
+
+Could you please investigate the following specifically:
+
+1. Whether there was any UPI AutoPay, recurring-payment, bank/PSP or gateway incident affecting ₹299 transactions around August 31–September 1.
+2. The underlying gateway/bank/UPI error codes corresponding to "Payment is not allowed for this account."
+3. Why "Token is not confirmed for recurring payments" is occurring for these ₹299 mandates.
+4. Whether the affected mandates/tokens are active, confirmed and eligible for recurring debit.
+5. Whether any particular PSP/bank is disproportionately responsible for these failures.
+6. Whether the 69 "created" ₹299 collect transactions are expected to remain pending or whether they indicate a processing issue.
+7. Whether there has been any change in our merchant account, UPI AutoPay configuration, mandate configuration, routing or gateway processing that could explain the increase.
+8. Whether our integration/retry logic could be causing repeated attempts against the same mandate.
+
+We can provide the affected payment IDs/transaction references separately if required.
+
+We would appreciate a detailed root-cause analysis rather than only the generic customer-facing error descriptions, as the concentration of failures around August 31–September 1 suggests there may be a bank/PSP/UPI AutoPay processing issue.
+
+Thanks.

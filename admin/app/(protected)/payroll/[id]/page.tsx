@@ -162,6 +162,13 @@ export default function PayslipPage() {
   }
 
   const months = MONTHS;
+  const isSalarySheet = payrollData.payrollRule === "FULL_TIME_SHEET";
+  const sheetLine = (label: string, amount: number, className = "") => (
+    <div className={`flex justify-between text-sm py-1 border-b border-dashed border-border/50 ${className}`}>
+      <span>{label}</span>
+      <span className="font-bold">{formatCurrency(amount || 0)}</span>
+    </div>
+  );
 
   const getStatusColor = (status: string) => {
     const colors: any = {
@@ -326,6 +333,28 @@ export default function PayslipPage() {
               <Clock className="w-5 h-5" />
               Work & Attendance Details
             </h3>
+            {isSalarySheet ? (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div className="flex flex-col gap-1 p-3 bg-muted/50 rounded-xl">
+                  <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Month Days</span>
+                  <span className="text-lg font-black tracking-tighter">{payrollData.monthDays || 0} Days</span>
+                </div>
+                <div className="flex flex-col gap-1 p-3 bg-muted/50 rounded-xl border-2 border-emerald-500/10">
+                  <span className="text-xs text-emerald-600 uppercase font-bold tracking-wider">Days Worked</span>
+                  <span className="text-lg font-black tracking-tighter text-emerald-600">{payrollData.daysWorked || 0} Days</span>
+                </div>
+                <div className="flex flex-col gap-1 p-3 bg-muted/50 rounded-xl border-2 border-destructive/10">
+                  <span className="text-xs text-destructive uppercase font-bold tracking-wider">Unpaid Days</span>
+                  <span className="text-lg font-black tracking-tighter text-destructive">
+                    {Math.max(0, (payrollData.monthDays || 0) - (payrollData.daysWorked || 0))} Days
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1 p-3 bg-muted/50 rounded-xl">
+                  <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Salary Rate</span>
+                  <span className="text-lg font-black tracking-tighter">{formatCurrency(payrollData.salaryRate || 0)}</span>
+                </div>
+              </div>
+            ) : (
             <div className="grid md:grid-cols-4 gap-4 text-sm">
               <div className="flex flex-col gap-1 p-3 bg-muted/50 rounded-xl">
                 <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Present Days</span>
@@ -356,11 +385,43 @@ export default function PayslipPage() {
                 </span>
               </div>
             </div>
+            )}
           </div>
 
           <Separator />
 
           {/* Earnings & Deductions */}
+          {isSalarySheet ? (
+            <div className="grid md:grid-cols-2 gap-10">
+              <div className="space-y-4">
+                <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-green-500" />
+                  Earnings
+                </h3>
+                <div className="space-y-2.5">
+                  {sheetLine(`Monthly Salary (${payrollData.daysWorked || 0}/${payrollData.monthDays || 0} days)`, payrollData.earnedSalary, "text-muted-foreground")}
+                  {sheetLine("Basic + D.A.", payrollData.basicDa)}
+                  {sheetLine("H.R.A.", payrollData.hra)}
+                  {sheetLine("Conveyance Allowance", payrollData.conveyance)}
+                  {sheetLine("Gross Wages Payable", payrollData.grossPay, "font-semibold text-green-700")}
+                </div>
+              </div>
+              <div className="space-y-4">
+                <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                  <Minus className="w-4 h-4 text-red-500" />
+                  Deductions
+                </h3>
+                <div className="space-y-2.5">
+                  {sheetLine("EPF (12% of Basic)", payrollData.epf)}
+                  {sheetLine("ESIC (0.75%)", payrollData.esic)}
+                  {sheetLine("Professional Tax", payrollData.professionalTax)}
+                  {(payrollData.advanceDeduction || 0) > 0 && sheetLine("Advance", payrollData.advanceDeduction)}
+                  {(payrollData.otherDeduction || 0) > 0 && sheetLine("Other", payrollData.otherDeduction)}
+                  {sheetLine("Total Deduction", payrollData.deductions, "font-semibold text-red-600")}
+                </div>
+              </div>
+            </div>
+          ) : (
           <div className="grid md:grid-cols-2 gap-10">
             {/* Earnings */}
             <div className="space-y-4">
@@ -449,6 +510,7 @@ export default function PayslipPage() {
               </div>
             </div>
           </div>
+          )}
 
           <Separator />
 

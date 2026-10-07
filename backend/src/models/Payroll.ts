@@ -46,6 +46,20 @@ export interface IPayroll extends Document {
   lateDeduction?: number;
   deductions: number;
   netPay: number;
+  // Full-time salary sheet (Excel format)
+  salaryRate?: number;
+  monthDays?: number;
+  daysWorked?: number;
+  daysWorkedManual?: boolean;
+  earnedSalary?: number;
+  basicDa?: number;
+  hra?: number;
+  conveyance?: number;
+  epf?: number;
+  esic?: number;
+  professionalTax?: number;
+  advanceDeduction?: number;
+  otherDeduction?: number;
   status: PayrollStatus;
   processedBy?: mongoose.Types.ObjectId;
   processedAt?: Date;
@@ -93,6 +107,19 @@ const PayrollSchema = new Schema<IPayroll>(
     lateDeduction: { type: Number, default: 0 },
     deductions: { type: Number, default: 0 },
     netPay: { type: Number, required: true },
+    salaryRate: { type: Number, default: 0 },
+    monthDays: { type: Number, default: 0 },
+    daysWorked: { type: Number, default: 0 },
+    daysWorkedManual: { type: Boolean, default: false },
+    earnedSalary: { type: Number, default: 0 },
+    basicDa: { type: Number, default: 0 },
+    hra: { type: Number, default: 0 },
+    conveyance: { type: Number, default: 0 },
+    epf: { type: Number, default: 0 },
+    esic: { type: Number, default: 0 },
+    professionalTax: { type: Number, default: 0 },
+    advanceDeduction: { type: Number, default: 0 },
+    otherDeduction: { type: Number, default: 0 },
     status: { type: String, enum: Object.values(PayrollStatus), default: PayrollStatus.DRAFT },
     processedBy: { type: Schema.Types.ObjectId, ref: "User" },
     processedAt: Date,

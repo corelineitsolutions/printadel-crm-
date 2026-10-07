@@ -9,6 +9,7 @@ import {
   getPayrolls,
   getPayrollStatistics,
   calculatePayroll,
+  updateSalarySheet,
 } from "../services/payroll.service";
 import { successResponse, errorResponse } from "../utils/response.utils";
 
@@ -28,6 +29,12 @@ const generatePayrollSchema = z.object({
 const bulkGenerateSchema = z.object({
   month: z.number().int().min(1).max(12),
   year: z.number().int().min(2000),
+});
+
+const updateSalarySheetSchema = z.object({
+  daysWorked: z.number().min(0).nullable().optional(),
+  advanceDeduction: z.number().min(0).optional(),
+  otherDeduction: z.number().min(0).optional(),
 });
 
 
@@ -71,6 +78,20 @@ export async function handleBulkGeneratePayroll(req: Request, res: Response) {
       `Bulk payroll generated: ${results.success.length} successful, ${results.failed.length} failed`,
       200
     );
+  } catch (error: any) {
+    return errorResponse(res, error.message, 400);
+  }
+}
+
+/**
+ * PATCH /api/payroll/:id/salary-sheet
+ * Edit Days Worked / Advance / Other deduction of a full-time salary sheet row
+ */
+export async function handleUpdateSalarySheet(req: Request, res: Response) {
+  try {
+    const changes = updateSalarySheetSchema.parse(req.body);
+    const payroll = await updateSalarySheet(req.params.id as string, changes);
+    return successResponse(res, payroll, "Salary sheet updated", 200);
   } catch (error: any) {
     return errorResponse(res, error.message, 400);
   }

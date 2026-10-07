@@ -34,6 +34,7 @@ export interface IUser extends Document {
   isActive: boolean;
   emergencyContact?: string | null;
   dateOfBirth?: Date | null;
+  gender?: "M" | "F" | "O" | null;
   panCardKey?: string | null;
   aadhaarCardKey?: string | null;
   createdAt: Date;
@@ -62,6 +63,7 @@ const UserSchema = new Schema<IUser>(
     isActive: { type: Boolean, default: true },
     emergencyContact: String,
     dateOfBirth: Date,
+    gender: { type: String, enum: ["M", "F", "O", null], default: null },
     panCardKey: String,
     aadhaarCardKey: String,
   },

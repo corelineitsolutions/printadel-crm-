@@ -1,0 +1,91 @@
+--------1-----  (Default – Maharashtra)
+Serial Number,EPIC No,Name (English),Name,Relative Name (English),Relative Name,Gender (English),Age,Assembly Number,Part No,boothNo,Booth Center (English),Booth Center,Booth Address (English),Booth Address,House Number,Prabhag
+1,RLH7012156,Mangal Pandurang Adhulakar,मंगल पांडुरंग आढूळकर,Pandurang Adhalakar,पांडुरंग आढळकर,Female,37,275/7/1,7,12,Matadan Kendr : Pisatri,मतदान केंद्र : पिसात्री,Matadan Kendra Pisatri School,पिसात्री,45,1
+2,RLH7012157,Ramesh Suresh Patil,रमेश सुरेश पाटील,Suresh Patil,सुरेश पाटील,Male,45,275/7/2,7,12,Matadan Kendr : Pisatri,मतदान केंद्र : पिसात्री,Matadan Kendra Pisatri School,पिसात्री,12,1
+3,RLH7012158,Sunita Ramesh Patil,सुनिता रमेश पाटील,Ramesh Patil,रमेश पाटील,Female,40,275/7/3,7,12,Matadan Kendr : Pisatri,मतदान केंद्र : पिसात्री,Matadan Kendra Pisatri School,पिसात्री,12,1
+
+ 2----- (Maharashtra Detailed)Ward_no,Ward_sr_no,card_no,first_name_v1,last_name_v1,l_middle_name,SerialInPart,Name_v1,Name_En,LastName,section_no,section_name,Section_name_v1,ac_no,Part_no,booth_no,booth_address,age,Gender,HouseNo
+5,1,ABC1234567,सुनील,पाटील,रामचंद्र,1,सुनील रामचंद्र पाटील,Sunil Ramchandra Patil,Patil,101,Ward 5 Pisatri,वॉर्ड ५ पिसात्री,275,7,12,ZP School Pisatri,38,Male,45
+5,2,ABC1234568,प्रिया,पाटील,सुनील,2,प्रिया सुनील पाटील,Priya Sunil Patil,Patil,101,Ward 5 Pisatri,वॉर्ड ५ पिसात्री,275,7,12,ZP School Pisatri,35,Female,45
+5,3,ABC1234569,अमित,जोशी,विजय,3,अमित विजय जोशी,Amit Vijay Joshi,Joshi,102,Ward 5 Bhor,वॉर्ड ५ भोर,275,7,13,Municipal School Bhor,29,Male,78
+
+3------ (Gujarat / Compact)
+cardno,vno,constno,ac,hname,esurname,familycode,yadibhag,hno,sex,age,name_english,relative_english,surname,relative,booth,address,name,relation,gun
+XYZ1111111,1,150,150/7,Rameshbhai,Patel,F001,7,12,M,45,RAMESHBHAI PATEL,MANUBHAI,પટેલ,મનુભાઈ,ZP School Ward 5,12 MG Road,રમેશભાઈ પટેલ,Father,G001
+XYZ1111112,2,150,150/7,Sunitaben,Patel,F001,7,12,F,40,SUNITABEN PATEL,RAMESHBHAI,પટેલ,રમેશભાઈ,ZP School Ward 5,12 MG Road,સુનીતાબેન પટેલ,Husband,G001
+XYZ1111113,3,150,150/7,Amit,Shah,F002,7,45,M,30,AMIT SHAH,VIJAY,શાહ,વિજય,Municipal Hall,45 Station Rd,અમિત શાહ,Father,G002
+
+
+4------ (UP Hindi Format) 
+vidhansabha,bhag_no,Name_First_HI,Name_Last_HI,Father_First_HI,Father_Last_HI,Name_First_EN,Name_Last_EN,Father_First_EN,Father_Last_EN,Gender_EN,Relation_EN,Anubhag_name,Anubhag_name_EN,Anubhag_number,Number,sr,Relation,age,makan
+322,1,राम,गुप्ता,श्याम,गुप्ता,RAM,GUPTA,SHYAM,GUPTA,Male,Father,वार्ड ५ गोरखपुर,Ward 5 Gorakhpur,5,UP1234567,1,पिता,45,12
+322,1,सीता,गुप्ता,राम,गुप्ता,SITA,GUPTA,RAM,GUPTA,Female,Husband,वार्ड ५ गोरखपुर,Ward 5 Gorakhpur,5,UP1234568,2,पति,40,12
+322,2,अमित,शर्मा,विजय,शर्मा,AMIT,SHARMA,VIJAY,SHARMA,Male,Father,वार्ड ६ गोरखपुर,Ward 6 Gorakhpur,6,UP1234569,3,पिता,30,78
+
+5------ (Local Body / Zilla Parishad) 
+Local Body Name,Voter Name,मतदाराचे नाव,Gender,Age,EPIC No.,AC Number,Part Number,Serial No.,Ward / College /,SR No.,Booth.,Mobile1,Mobile2,Mobile3,Booth_add,Booth_MR
+34475-Pune Zilla Parishad,Bharat Namdev Ghavare,भरत नामदेव घावरे,M,30,ZLO7592504,203,347,1,58,1,1,9921428038,9112324879,7743913035,Zilla Parishad School Guhini Bhor,गुहिणी
+34475-Pune Zilla Parishad,Sunita Bharat Ghavare,सुनिता भरत घावरे,F,28,ZLO7592505,203,347,2,58,2,1,9876543210,,,Zilla Parishad School Guhini Bhor,गुहिणी
+34475-Pune Zilla Parishad,Ramesh Vitthal Patil,रमेश विठ्ठल पाटील,M,55,ZLO7592506,203,348,1,59,1,2,9123456789,9988776655,,Municipal School Bhor East,भोर
+
+
+
+6 ----- (Hindi + Marathi + English)  
+
+Serial No,EPIC No,Name,Name (English),Name (Hindi),Relation Type,Relation Type (Hindi),Relative Name,Relative Name (English),Relative Name (Hindi),House No,Gender,Gender (Hindi),Age,Assembly No,Booth Center,Booth Center (English),Booth Center (Hindi),Booth Address,Booth Address (English),Booth Address (Hindi)
+1,RLH7012156,मंगल पांडुरंग आढूळकर,Mangal Pandurang Adhulakar,मंगल पांडुरंग आढूळकर,H,पति,पांडुरंग आढळकर,Pandurang Adhalakar,पांडुरंग आढळकर,NA,स्री,महिला,37,275/7/1,यादी भाग क्र. ७ : १ - पिसात्री,Yadi Bhag Kra 7 1 Pisatri,यादी भाग क्र. ७ : १ - पिसात्री,Matadan Kendra : Pisatri School,Matadan Kendr Pisatri School,मतदान केंद्र : पिसात्री शाळा
+2,RLH7012157,रमेश सुरेश पाटील,Ramesh Suresh Patil,रमेश सुरेश पाटील,F,पिता,सुरेश पाटील,Suresh Patil,सुरेश पाटील,12,पु,पुरुष,45,275/7/2,यादी भाग क्र. ७ : २ - भोर,Yadi Bhag Kra 7 2 Bhor,यादी भाग क्र. ७ : २ - भोर,Matadan Kendra : Bhor School,Matadan Kendr Bhor School,मतदान केंद्र : भोर शाळा
+3,RLH7012158,सुनिता रमेश पाटील,Sunita Ramesh Patil,सुनिता रमेश पाटील,H,पति,रमेश पाटील,Ramesh Patil,रमेश पाटील,12,स्री,महिला,40,275/7/3,यादी भाग क्र. ७ : ३ - भोर,Yadi Bhag Kra 7 3 Bhor,यादी भाग क्र. ७ : ३ - भोर,Matadan Kendra : Bhor Hall,Matadan Kendr Bhor Hall,मतदान केंद्र : भोर हॉल
+
+
+
+7---- (MP / Parliamentary)
+SlNo,IDCardNo,ACNo,PartNo,EName,RName,RType,Age,Sex,ContactNo,Address,VAddress,HouseNo,VHouseNO,VEName,VRName
+1,MP1234567,23,101,HARIRAM PATIL,GHASIRAM TUKARAM PATIL,F,45,M,9876543210,12 MG Road Indore,१२ एमजी रोड इंदौर,H12,VH12,हरिराम पाटील,घासीराम तुकाराम पाटील
+2,MP1234568,23,101,SUNITA HARIRAM PATIL,HARIRAM PATIL,H,40,F,9876543211,12 MG Road Indore,१२ एमजी रोड इंदौर,H12,VH12,सुनिता हरिराम पाटील,हरिराम पाटील
+3,MP1234569,23,102,VIJAY KUMAR SHARMA,RAMESH SHARMA,F,35,M,9876543212,45 Station Road,४५ स्टेशन रोड,H45,VH45,विजय कुमार शर्मा,रमेश शर्मा
+
+
+8 --- (Karnataka)
+
+vno,constno,a_yadibhag,name_english,relative_english,name,relative,relation,age,sex,mobile,address,hno,b_booth,cardno
+1,150,7,NIKIL NAYAK,Ravindra,ನಿಕಿಲ್ ನಾಯಕ್,ರವೀಂದ್ರ,Father,30,M,9876543210,12 MG Road Bangalore,12,1-,KA1234567
+2,150,7,ANITA NIKIL NAYAK,NIKIL,Husband,28,F,9876543211,12 MG Road Bangalore,12,1-,KA1234568
+3,150,8,RAJESH KUMAR,VIJAY,Father,45,M,9876543212,45 Station Road Mysore,45,(38 -,KA1234569
+
+
+9 ---  (Tamil Nadu)
+Sr no.,Number,Assembly Number,Part No,Name,Father Name,Relation,age,sex,Section name,Main_Town,Polling_Station_Name,House No.
+1,TN1234567,25,101,MURUGAN K,KRISHNAN K,Father,45,M,Ward 5 Anna Nagar,Chennai,Govt Higher Secondary School Anna Nagar,12
+2,TN1234568,25,101,LAKSHMI MURUGAN,MURUGAN K,Husband,40,F,Ward 5 Anna Nagar,Chennai,Govt Higher Secondary School Anna Nagar,12
+3,TN1234569,25,102,SELVAM R,RAMASAMY R,Father,35,M,Ward 6 T Nagar,Chennai,Municipal School T Nagar,45
+
+
+10 --- (UP Hindi – Shubham's Format)
+
+ Sr.No,EPIC No,Name (Hindi),Name (English),Relation Type,Relative Name (Hindi),Relative Name (English),House No,Gender,Age,Assembly No,Booth Center (Hindi),Booth Center (English),Booth Address,Booth Address (English)
+6,ISP2881522,कृष्णा गुप्ता,Krrishna Gupta,पिता,रामचन्द्र गुप्ता,Ramachandr Gupta,0,पु,30,,अनुभाग संख्या और नाम : -जंगल बेनी माधो,Anubhag Sankhya Aur Nam Jungle Beni Madho,निर्वाचक नामावली -2026 विधानसभा निर्वाचन : : 322-गोरखपुर शहर भाग संख्या : : 1,Elector Roll 2026 Vidhanasabha Nirvachan 322 Gorakhpur City Bhag Sankhya 1
+7,ISP2881523,सुनीता गुप्ता,Sunita Gupta,पति,कृष्णा गुप्ता,Krrishna Gupta,12,म,28,,अनुभाग संख्या और नाम : -जंगल बेनी माधो,Anubhag Sankhya Aur Nam Jungle Beni Madho,निर्वाचक नामावली -2026 विधानसभा निर्वाचन : : 322-गोरखपुर शहर भाग संख्या : : 1,Elector Roll 2026 Vidhanasabha Nirvachan 322 Gorakhpur City Bhag Sankhya 1
+8,ISP2881524,अमित शर्मा,Amit Sharma,पिता,विजय शर्मा,Vijay Sharma,45,पु,35,,अनुभाग संख्या और नाम : -शाहपुर,Anubhag Sankhya Aur Nam Shahpur,निर्वाचक नामावली -2026 विधानसभा निर्वाचन : : 323-शाहपुर भाग संख्या : : 2,Elector Roll 2026 Vidhanasabha Nirvachan 323 Shahpur Bhag Sankhya 2
+
+11 ----  (Bangalore / Kannada)
+Serial No,EPIC No,Name,Name (Kannada),Relation Type,Relative Name,Relative Name (Kannada),House No,Gender,Age,Booth Center,Booth Center (Kannada),Booth Address,Booth Address (Kannada),Part,Booth Center (English),ac,boothNo,Booth Name,Booth Name (Kannada),prabhag
+1,KA1234567,Rajesh Kumar,ರಾಜೇಶ್ ಕುಮಾರ್,Father,Vijay Kumar,ವಿಜಯ್ ಕುಮಾರ್,12,Male,35,Govt School Jayanagar,ಸರ್ಕಾರಿ ಶಾಲೆ ಜಯನಗರ,Jayanagar 4th Block,ಜಯನಗರ ೪ನೇ ಬ್ಲಾಕ್,7,Govt School Jayanagar,150,7,Govt Primary School,ಸರ್ಕಾರಿ ಪ್ರಾಥಮಿಕ ಶಾಲೆ,5
+2,KA1234568,Anita Rajesh,ಅನಿತಾ ರಾಜೇಶ್,Husband,Rajesh Kumar,ರಾಜೇಶ್ ಕುಮಾರ್,12,Female,30,Govt School Jayanagar,ಸರ್ಕಾರಿ ಶಾಲೆ ಜಯನಗರ,Jayanagar 4th Block,ಜಯನಗರ ೪ನೇ ಬ್ಲಾಕ್,7,Govt School Jayanagar,150,7,Govt Primary School,ಸರ್ಕಾರಿ ಪ್ರಾಥಮಿಕ ಶಾಲೆ,5
+3,KA1234569,Suresh Reddy,ಸುರೇಶ್ ರೆಡ್ಡಿ,Father,Rama Reddy,ರಾಮ ರೆಡ್ಡಿ,45,Male,50,Municipal Hall BTM,ಮುನ್ಸಿಪಲ್ ಹಾಲ್ ಬಿಟಿಎಂ,BTM Layout 2nd Stage,ಬಿಟಿಎಂ ಲೇಔಟ್ ೨ನೇ ಹಂತ,8,Municipal Hall BTM,150,8,Municipal Hall,ಮುನ್ಸಿಪಲ್ ಹಾಲ್,6
+
+12 -- (New Detailed Format)
+sr,prabhaag,EPIC No,ac,Part Number,GAN,Voter Full Name,LastName,Lastnamemr,Relative's Name,Relative's Name L,Age,Gender,Section No and Name,Section No and Name L,boothno,Address of Polling Station,Address of Polling Station L
+1,5,ABC1234567,275,7,G001,BHUSHAN GURUNATH PATIL,PATIL,पाटील,GURUNATH PATIL,गुरुनाथ पाटील,45,Male,Section 7 Pisatri,विभाग ७ पिसात्री,12,ZP School Pisatri,जि.प. शाळा पिसात्री
+2,5,ABC1234568,275,7,G001,PRADNYA BHUSHAN PATIL,PATIL,पाटील,BHUSHAN PATIL,भूषण पाटील,40,Female,Section 7 Pisatri,विभाग ७ पिसात्री,12,ZP School Pisatri,जि.प. शाळा पिसात्री
+3,6,ABC1234569,275,8,G002,AMIT VIJAY JOSHI,JOSHI,जोशी,VIJAY JOSHI,विजय जोशी,30,Male,Section 8 Bhor,विभाग ८ भोर,13,Municipal School Bhor,नगर शाळा भोर
+
+
+13---- (Marathi Devanagari Headers)
+
+
+अ.क्र.,भागातील अ.क्र.,पहिले नाव,आडनाव,नातेवाईक नाव,नातेवाईक आडनाव,नाते,लिंग,जन्म दिनांक,संस्था,ओळखपत्र,ac,विधानसभा,विधानसभा क्र,village,अनुक्रमांक,First Name,Surname,Relative's Name,Relative's Surname,Institution,Assembly
+1,1,सुनील,पाटील,रामचंद्र,पाटील,वडील,पुरुष,15/06/1980,जि.प. शाळा पिसात्री,ABC1234567,275,पिसात्री विधानसभा,275,पिसात्री,1,Sunil,Patil,Ramchandra,Patil,ZP School Pisatri,Pisatri Vidhansabha
+2,2,प्रिया,पाटील,सुनील,पाटील,पती,स्त्री,20/03/1985,जि.प. शाळा पिसात्री,ABC1234568,275,पिसात्री विधानसभा,275,पिसात्री,2,Priya,Patil,Sunil,Patil,ZP School Pisatri,Pisatri Vidhansabha
+3,1,अमित,जोशी,विजय,जोशी,वडील,पुरुष,10/11/1990,नगर शाळा भोर,ABC1234569,276,भोर विधानसभा,276,भोर,3,Amit,Joshi,Vijay,Joshi,Municipal School Bhor,Bhor Vidhansabha
+

@@ -40,6 +40,7 @@ import { useAuthStore } from "@/store/authStore";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { cn, formatCurrency } from "@/lib/utils";
+import { FullTimeSalarySheet } from "@/components/payroll/full-time-salary-sheet";
 
 export default function PayrollPage() {
   const { user } = useAuthStore();
@@ -49,6 +50,7 @@ export default function PayrollPage() {
   const [selectedMonth, setSelectedMonth] = useState<number | string>(currentDate.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [employeeTypeFilter, setEmployeeTypeFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
 
   const [isGenerateDialogOpen, setIsGenerateDialogOpen] = useState(false);
@@ -100,14 +102,16 @@ export default function PayrollPage() {
 
   // Generate payroll mutation
   const generatePayrollMutation = useMutation({
-    mutationFn: (data: { userId: string; month: number; year: number }) =>
+    mutationFn: (data: { userId: string; month: number; year: number; fromSheet?: boolean }) =>
       payrollAPI.generatePayroll(data.userId, data.month, data.year),
-    onSuccess: () => {
+    onSuccess: (_res, variables) => {
       toast.success("Payroll generated successfully!");
       queryClient.invalidateQueries({ queryKey: ["payrolls"] });
       queryClient.invalidateQueries({ queryKey: ["payroll-stats"] });
-      setIsGenerateDialogOpen(false);
-      setSelectedEmployee("");
+      if (!variables.fromSheet) {
+        setIsGenerateDialogOpen(false);
+        setSelectedEmployee("");
+      }
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || "Failed to generate payroll");
@@ -197,14 +201,23 @@ export default function PayrollPage() {
     );
   };
 
+  const matchesSearchTerm = (name: string, empId: string) =>
+    name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    empId.toLowerCase().includes(searchTerm.toLowerCase());
+
   const filteredPayrolls = payrollsData?.filter((payroll: any) => {
-    const userName = payroll.user?.fullName || "";
-    const userEmpId = payroll.user?.employeeId || "";
-    const matchesSearch =
-      userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      userEmpId.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesSearch;
+    const type = payroll.employeeType || payroll.user?.employeeType || "Full-time";
+    if (isManager && employeeTypeFilter !== "all" && type !== employeeTypeFilter) return false;
+    return matchesSearchTerm(payroll.user?.fullName || "", payroll.user?.employeeId || "");
   });
+
+  const showSalarySheet = isManager && employeeTypeFilter === "Full-time";
+  const fullTimeEmployees = (employeesData || []).filter(
+    (emp: any) =>
+      emp.isActive !== false &&
+      (emp.employeeType || "Full-time") === "Full-time" &&
+      matchesSearchTerm(emp.fullName || "", emp.employeeId || "")
+  );
 
   const months = [
     "January", "February", "March", "April", "May", "June",
@@ -272,7 +285,7 @@ export default function PayrollPage() {
                               ? "Rule: Hourly pay basis (regularHours × hourlyRate) + Overtime pay."
                               : empType === "Contract"
                               ? "Rule: Fixed contract retainer + Overtime pay."
-                              : "Rule: Fixed monthly salary / 30 + Overtime pay - leave/late deductions."}
+                              : "Rule: Salary sheet — Rate ÷ month days × days worked, split Basic+DA 50% / HRA 40% / Conveyance 10%, less EPF, ESIC, PT, Advance and Other."}
                           </p>
                         </div>
                       );
@@ -459,7 +472,7 @@ export default function PayrollPage() {
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className={cn("grid gap-4", isManager ? "md:grid-cols-4" : "sm:grid-cols-2 md:grid-cols-3")}>
+          <div className={cn("grid gap-4", isManager ? "sm:grid-cols-2 lg:grid-cols-5" : "sm:grid-cols-2 md:grid-cols-3")}>
             <div className="space-y-2">
               <Label>Month</Label>
               <Select
@@ -489,6 +502,20 @@ export default function PayrollPage() {
             </div>
             {isManager ? (
               <>
+                <div className="space-y-2">
+                  <Label>Employee Type</Label>
+                  <Select value={employeeTypeFilter} onValueChange={(v) => v && setEmployeeTypeFilter(v)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="Full-time">Full-time (Salary Sheet)</SelectItem>
+                      <SelectItem value="Part-time">Part-time</SelectItem>
+                      <SelectItem value="Contract">Contract</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="space-y-2">
                   <Label>Status</Label>
                   <Select value={filterStatus} onValueChange={setFilterStatus}>
@@ -603,8 +630,32 @@ export default function PayrollPage() {
         );
       })()}
 
+      {showSalarySheet && (
+        <FullTimeSalarySheet
+          payrolls={filteredPayrolls || []}
+          employees={fullTimeEmployees}
+          month={selectedMonth === "all" ? "all" : Number(selectedMonth)}
+          year={selectedYear}
+          monthLabel={selectedMonth === "all" ? "" : months[Number(selectedMonth) - 1]}
+          onGenerate={(userId) =>
+            generatePayrollMutation.mutate({
+              userId,
+              month: Number(selectedMonth),
+              year: selectedYear,
+              fromSheet: true,
+            })
+          }
+          generatingUserId={generatePayrollMutation.isPending ? generatePayrollMutation.variables?.userId ?? null : null}
+          onBulkGenerate={handleBulkGenerate}
+          isBulkGenerating={bulkGenerateMutation.isPending}
+          onProcess={(id) => processPayrollMutation.mutate(id)}
+          onMarkPaid={(id) => markPaidMutation.mutate(id)}
+          isActionPending={processPayrollMutation.isPending || markPaidMutation.isPending}
+        />
+      )}
+
       {/* Payroll List / Table */}
-      <Card>
+      <Card className={showSalarySheet ? "hidden" : undefined}>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>
             {isManager ? "Employee Payrolls" : (selectedMonth === "all" ? "All Salary Slips" : "Salary Slips")}

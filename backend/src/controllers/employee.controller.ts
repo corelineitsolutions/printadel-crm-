@@ -31,6 +31,9 @@ const createEmployeeSchema = z.object({
   allowWorkFromHome: z.boolean().nullable().optional(),
   panCardKey: z.string().nullable().optional(),
   aadhaarCardKey: z.string().nullable().optional(),
+  gender: z.enum(["M", "F", "O"]).nullable().optional(),
+  dateOfBirth: z.string().nullable().optional(),
+  joinDate: z.string().nullable().optional(),
 });
 
 const createCustomRoleSchema = z.object({
@@ -72,6 +75,7 @@ const updateEmployeeSchema = z.object({
   emergencyContact: z.string().nullable().optional(),
   dateOfBirth: z.string().or(z.date()).nullable().optional(),
   joinDate: z.string().or(z.date()).nullable().optional(),
+  gender: z.enum(["M", "F", "O"]).nullable().optional(),
 });
 
 /**
