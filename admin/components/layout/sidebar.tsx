@@ -23,6 +23,7 @@ import {
   MapPin,
   Briefcase,
   ChevronDown,
+  FileText,
 } from "lucide-react";
 
 interface NavItem {
@@ -49,6 +50,7 @@ const navGroups: NavGroup[] = [
     items: [
       { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard", roles: ALL_ROLES },
       { icon: Printer, label: "Job Cards", href: "/job-cards", roles: ALL_ROLES },
+      { icon: FileText, label: "Quotations", href: "/quotations", roles: ALL_ROLES },
       { icon: CheckSquare, label: "Tasks", href: "/tasks", roles: ALL_ROLES },
       { icon: FolderKanban, label: "Projects", href: "/projects", roles: ALL_ROLES },
       { icon: Users, label: "Employees", href: "/employees", roles: ["ADMIN", "MANAGER"] },

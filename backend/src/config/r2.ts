@@ -44,10 +44,16 @@ function getClient() {
   return client;
 }
 
+export const QUOTATION_APPROVAL_PREFIX = "quotation-approvals/";
+
 /**
  * Uploads a base64 image data URL and returns the object key
  */
 export async function uploadEmployeeDocument(documentType: "pan-card" | "aadhaar-card", dataUrl: string) {
+  return uploadPrivateImage(`${EMPLOYEE_DOCUMENT_PREFIX}${documentType}/`, dataUrl);
+}
+
+export async function uploadPrivateImage(keyPrefix: string, dataUrl: string) {
   const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
   if (!match) {
     throw new Error("Invalid image. Upload a JPG, PNG or WEBP file.");
@@ -67,7 +73,7 @@ export async function uploadEmployeeDocument(documentType: "pan-card" | "aadhaar
     throw new Error("Image must be 5 MB or smaller.");
   }
 
-  const key = `${EMPLOYEE_DOCUMENT_PREFIX}${documentType}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
+  const key = `${keyPrefix}${Date.now()}-${crypto.randomUUID()}.${extension}`;
 
   await getClient().send(
     new PutObjectCommand({

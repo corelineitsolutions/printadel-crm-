@@ -265,6 +265,36 @@ export const jobCardAPI = {
 };
 
 // Office API
+export interface QuotationPayload {
+  subject: string;
+  clientName: string;
+  clientCompany?: string;
+  clientPhone?: string;
+  clientEmail?: string;
+  clientAddress?: string;
+  items: { description: string; quantity: number; rate: number }[];
+  discount?: number;
+  gstPercent?: number;
+  validUntil?: string | null;
+  notes?: string;
+  terms?: string;
+}
+
+export const quotationAPI = {
+  getQuotations: (params?: { status?: string; search?: string; assignedTo?: string }) =>
+    api.get("/quotations", { params }),
+  getQuotationById: (id: string) => api.get(`/quotations/${id}`),
+  getNextNumber: () => api.get("/quotations/next-number"),
+  getDesigners: () => api.get("/quotations/designers"),
+  createQuotation: (data: QuotationPayload) => api.post("/quotations", data),
+  updateQuotation: (id: string, data: Partial<QuotationPayload>) => api.put(`/quotations/${id}`, data),
+  assignQuotation: (id: string, designerId: string | null) =>
+    api.patch(`/quotations/${id}/assign`, { designerId }),
+  updateStatus: (id: string, data: { status: string; screenshots?: string[]; note?: string }) =>
+    api.patch(`/quotations/${id}/status`, data),
+  deleteQuotation: (id: string) => api.delete(`/quotations/${id}`),
+};
+
 export const officeAPI = {
   getOffices: (params?: { activeOnly?: boolean }) => api.get("/offices", { params }),
   createOffice: (data: {

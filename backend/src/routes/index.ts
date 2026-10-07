@@ -13,6 +13,7 @@ import settingRoutes from "./setting.routes";
 import jobCardRoutes from "./jobCard.routes";
 import productivityRoutes from "./productivity.routes";
 import officeRoutes from "./office.routes";
+import quotationRoutes from "./quotation.routes";
 
 /**
  * Main Routes Index
@@ -36,6 +37,7 @@ router.use("/settings", settingRoutes);
 router.use("/job-cards", jobCardRoutes);
 router.use("/productivity", productivityRoutes);
 router.use("/offices", officeRoutes);
+router.use("/quotations", quotationRoutes);
 
 // Health check endpoint
 router.get("/health", (_req, res) => {
