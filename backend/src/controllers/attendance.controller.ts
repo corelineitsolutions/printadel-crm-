@@ -16,9 +16,11 @@ import {
   updateAttendanceStatus,
   toggleOvertime,
   getOvertimeRecords,
+  getNetworkStatus,
 } from "../services/attendance.service";
 import { CorrectionStatus } from "../models/AttendanceCorrection";
 import { successResponse, errorResponse } from "../utils/response.utils";
+import { getClientIp } from "../utils/ip.utils";
 import { z } from "zod";
 
 /**
@@ -48,24 +50,25 @@ const assignWFHSchema = z.object({
   reason: z.string().optional(),
 });
 
-const punchInSchema = z.object({
-  location: z.object({
+// Location is optional because a punch from the office Wi-Fi does not need GPS.
+const locationSchema = z
+  .object({
     lat: z.number(),
     lng: z.number(),
     accuracy: z.number().nonnegative().optional(),
     address: z.string().optional(),
-  }),
+  })
+  .nullish()
+  .transform((value) => value ?? undefined);
+
+const punchInSchema = z.object({
+  location: locationSchema,
   isWFH: z.boolean().optional(),
   isOvertime: z.boolean().optional(),
 });
 
 const punchOutSchema = z.object({
-  location: z.object({
-    lat: z.number(),
-    lng: z.number(),
-    accuracy: z.number().nonnegative().optional(),
-    address: z.string().optional(),
-  }),
+  location: locationSchema,
   workSummary: z.string().optional(),
   workImages: z.array(z.string()).optional(),
 });
@@ -85,7 +88,7 @@ export async function handlePunchIn(req: Request, res: Response) {
     }
 
     const { location, isWFH, isOvertime } = punchInSchema.parse(req.body);
-    const attendance = await punchIn(req.user.userId, location, isWFH, isOvertime);
+    const attendance = await punchIn(req.user.userId, location, isWFH, isOvertime, getClientIp(req));
 
     return successResponse(res, attendance, "Punched in successfully", 201);
   } catch (error: any) {
@@ -104,9 +107,25 @@ export async function handlePunchOut(req: Request, res: Response) {
     }
 
     const { location, workSummary, workImages } = punchOutSchema.parse(req.body);
-    const attendance = await punchOut(req.user.userId, location, workSummary, workImages);
+    const attendance = await punchOut(req.user.userId, location, workSummary, workImages, getClientIp(req));
 
     return successResponse(res, attendance, "Punched out successfully");
+  } catch (error: any) {
+    return errorResponse(res, error.message, 400);
+  }
+}
+
+/**
+ * GET /api/attendance/network-status
+ * Reports the caller's public IP and whether it matches their office Wi-Fi
+ */
+export async function handleGetNetworkStatus(req: Request, res: Response) {
+  try {
+    if (!req.user) {
+      return errorResponse(res, "User not authenticated", 401);
+    }
+    const status = await getNetworkStatus(req.user.userId, getClientIp(req));
+    return successResponse(res, status, "Network status");
   } catch (error: any) {
     return errorResponse(res, error.message, 400);
   }

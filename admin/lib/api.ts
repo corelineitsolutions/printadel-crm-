@@ -44,10 +44,11 @@ export const authAPI = {
 
 // Attendance API
 export const attendanceAPI = {
-  punchIn: (location: { lat: number; lng: number; accuracy?: number }, isWFH: boolean = false) =>
+  punchIn: (location: { lat: number; lng: number; accuracy?: number } | null, isWFH: boolean = false) =>
     api.post("/attendance/punch-in", { location, isWFH }),
-  punchOut: (location: { lat: number; lng: number; accuracy?: number }, workSummary?: string, workImages?: string[]) =>
+  punchOut: (location: { lat: number; lng: number; accuracy?: number } | null, workSummary?: string, workImages?: string[]) =>
     api.post("/attendance/punch-out", { location, workSummary, workImages }),
+  getNetworkStatus: () => api.get("/attendance/network-status"),
   startBreak: () => api.post("/attendance/start-break"),
   endBreak: () => api.post("/attendance/end-break"),
   getTodayAttendance: () => api.get("/attendance/today"),
@@ -304,6 +305,7 @@ export const officeAPI = {
     latitude: number;
     longitude: number;
     radiusMeters?: number;
+    wifiIps?: string[];
     isActive?: boolean;
   }) => api.post("/offices", data),
   updateOffice: (id: string, data: any) => api.put(`/offices/${id}`, data),

@@ -14,6 +14,9 @@ dotenv.config();
 
 const app: Express = express();
 
+// Nginx on the same host forwards the visitor IP; office Wi-Fi punch-in depends on it.
+app.set("trust proxy", "loopback");
+
 // ==================== Middleware ====================
 
 /**

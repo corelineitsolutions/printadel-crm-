@@ -1,6 +1,8 @@
 import mongoose from "mongoose";
-import Attendance, { AttendanceStatus } from "../models/Attendance";
+import Attendance, { AttendanceStatus, PunchMethod } from "../models/Attendance";
 import User, { UserRole } from "../models/User";
+import Office from "../models/Office";
+import { ipInList } from "../utils/ip.utils";
 import Setting from "../models/Setting";
 import WFHAssignment from "../models/WFHAssignment";
 import Leave, { LeaveStatus, LeaveType } from "../models/Leave";
@@ -93,28 +95,70 @@ async function validateLocation(location: Location): Promise<boolean> {
   return isWithinRadius(location, officeLat, officeLng, geofenceRadius).ok;
 }
 
+function hasValidCoordinates(location?: Location | null): location is Location {
+  return (
+    !!location &&
+    typeof location.lat === "number" &&
+    typeof location.lng === "number" &&
+    !Number.isNaN(location.lat) &&
+    !Number.isNaN(location.lng)
+  );
+}
+
 /**
- * Employees with an assigned office must be within that office's radius.
- * Employees without one fall back to the global office settings.
+ * Finds the office whose Wi-Fi the request comes from. Employees with an assigned office
+ * only match that office; employees without one may use any active office's Wi-Fi.
  */
-async function assertWithinOffice(userId: string, location: Location, action: "punch in" | "punch out") {
-  if (
-    !location ||
-    typeof location.lat !== "number" ||
-    typeof location.lng !== "number" ||
-    Number.isNaN(location.lat) ||
-    Number.isNaN(location.lng)
-  ) {
-    throw new Error(`Location is required to ${action}. Please allow location access.`);
+async function resolveOfficeContext(userId: string, clientIp?: string) {
+  const user = await User.findById(userId).select("officeId").populate("office");
+  const office: any = (user as any)?.office || null;
+
+  let wifiOffice: any = null;
+  if (clientIp) {
+    if (office) {
+      if (office.isActive && ipInList(clientIp, office.wifiIps)) wifiOffice = office;
+    } else {
+      const candidates = await Office.find({ isActive: true, wifiIps: { $exists: true, $ne: [] } }).select("name wifiIps");
+      wifiOffice = candidates.find((o) => ipInList(clientIp, o.wifiIps)) || null;
+    }
+  }
+  return { office, wifiOffice };
+}
+
+export async function getNetworkStatus(userId: string, clientIp: string) {
+  const { office, wifiOffice } = await resolveOfficeContext(userId, clientIp);
+  return {
+    ip: clientIp,
+    onOfficeWifi: !!wifiOffice,
+    officeName: wifiOffice?.name || office?.name || null,
+    officeHasWifi: office ? (office.wifiIps || []).length > 0 : undefined,
+  };
+}
+
+/**
+ * A punch is allowed when the request comes from the office Wi-Fi (public IP match)
+ * or the device location is within the office radius.
+ */
+async function verifyOfficePresence(
+  userId: string,
+  location: Location | undefined,
+  clientIp: string | undefined,
+  action: "punch in" | "punch out"
+): Promise<PunchMethod> {
+  const { office, wifiOffice } = await resolveOfficeContext(userId, clientIp);
+
+  if (office && !office.isActive) {
+    throw new Error(`Your assigned office "${office.name}" is inactive. Please contact your administrator.`);
+  }
+  if (wifiOffice) return PunchMethod.WIFI;
+
+  const wifiHint = office && (office.wifiIps || []).length > 0 ? " or connect to the office Wi-Fi" : "";
+
+  if (!hasValidCoordinates(location)) {
+    throw new Error(`Location is required to ${action}. Please allow location access${wifiHint}.`);
   }
 
-  const user = await User.findById(userId).select("officeId").populate("office");
-  const office: any = (user as any)?.office;
-
   if (office) {
-    if (!office.isActive) {
-      throw new Error(`Your assigned office "${office.name}" is inactive. Please contact your administrator.`);
-    }
     const radius = office.radiusMeters || 100;
     const { distance, ok } = isWithinRadius(location, office.latitude, office.longitude, radius);
     if (!ok) {
@@ -124,15 +168,16 @@ async function assertWithinOffice(userId: string, location: Location, action: "p
           ? ` Your device location is too imprecise (±${Math.round(accuracy)} m). Turn on Wi-Fi and Windows location services, or use your phone.`
           : "";
       throw new Error(
-        `You are ${Math.round(distance)} m away from ${office.name}. You must be within ${radius} m of your office to ${action}.${accuracyNote}`
+        `You are ${Math.round(distance)} m away from ${office.name}. You must be within ${radius} m of your office${wifiHint} to ${action}.${accuracyNote}`
       );
     }
-    return;
+    return PunchMethod.LOCATION;
   }
 
   if (!(await validateLocation(location))) {
     throw new Error(`Location is outside office geofence. Please ${action} from office premises.`);
   }
+  return PunchMethod.LOCATION;
 }
 
 /**
@@ -193,7 +238,13 @@ export async function updateAttendanceStatus(
  * Punch In
  * Records employee arrival time with location
  */
-export async function punchIn(userId: string, location: Location, isWFH: boolean = false, isOvertime: boolean = false) {
+export async function punchIn(
+  userId: string,
+  location: Location | undefined,
+  isWFH: boolean = false,
+  isOvertime: boolean = false,
+  clientIp?: string
+) {
   // Get today's date range in IST
   const today = new Date();
   const startDate = getISTStartOfDay(today);
@@ -251,9 +302,7 @@ export async function punchIn(userId: string, location: Location, isWFH: boolean
     }
   }
 
-  if (!isWFH) {
-    await assertWithinOffice(userId, location, "punch in");
-  }
+  const punchInMethod = isWFH ? PunchMethod.WFH : await verifyOfficePresence(userId, location, clientIp, "punch in");
 
   // Get settings for late mark
   const shiftStartSetting = await Setting.findOne({ key: "SHIFT_START_TIME" });
@@ -284,7 +333,9 @@ export async function punchIn(userId: string, location: Location, isWFH: boolean
     {
       $set: {
         punchInTime: now,
-        punchInLocation: location,
+        ...(hasValidCoordinates(location) && { punchInLocation: location }),
+        punchInMethod,
+        punchInIp: clientIp,
         status: isWFH ? AttendanceStatus.WORK_FROM_HOME : AttendanceStatus.PRESENT,
         isWFH,
         isOvertime,
@@ -329,9 +380,10 @@ export async function toggleOvertime(userId: string, isOvertime: boolean) {
  */
 export async function punchOut(
   userId: string,
-  location: Location,
+  location: Location | undefined,
   workSummary?: string,
-  workImages?: string[]
+  workImages?: string[],
+  clientIp?: string
 ) {
   const today = new Date();
 
@@ -358,9 +410,9 @@ export async function punchOut(
     throw new Error("Must punch in before punching out");
   }
 
-  if (!attendance.isWFH) {
-    await assertWithinOffice(userId, location, "punch out");
-  }
+  const punchOutMethod = attendance.isWFH
+    ? PunchMethod.WFH
+    : await verifyOfficePresence(userId, location, clientIp, "punch out");
 
   // Handle active breaks
   const activeBreak = attendance.breaks.find(b => !b.endTime);
@@ -409,7 +461,9 @@ export async function punchOut(
 
   // Update attendance
   attendance.punchOutTime = punchOutTime;
-  attendance.punchOutLocation = location;
+  if (hasValidCoordinates(location)) attendance.punchOutLocation = location;
+  attendance.punchOutMethod = punchOutMethod;
+  attendance.punchOutIp = clientIp;
   attendance.totalHours = totalHours;
   attendance.workingHours = workingHours > 0 ? workingHours : 0;
 

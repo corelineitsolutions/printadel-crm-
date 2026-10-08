@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { z } from "zod";
 import { successResponse, errorResponse } from "../utils/response.utils";
 import * as officeService from "../services/office.service";
+import { isValidIp } from "../utils/ip.utils";
 
 const officeSchema = z.object({
   name: z.string().trim().min(2).max(80),
@@ -9,6 +10,10 @@ const officeSchema = z.object({
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
   radiusMeters: z.number().min(10).max(5000).optional(),
+  wifiIps: z
+    .array(z.string().trim().refine(isValidIp, (ip) => ({ message: `"${ip}" is not a valid IP address` })))
+    .max(20)
+    .optional(),
   isActive: z.boolean().optional(),
 });
 
@@ -18,7 +23,7 @@ export async function getOffices(req: Request, res: Response) {
     const offices = await officeService.getAllOffices(!activeOnly);
     return successResponse(res, offices, "Offices retrieved successfully");
   } catch (error: any) {
-    return errorResponse(res, error.message, 400);
+    return errorResponse(res, error?.errors?.[0]?.message || error.message, 400);
   }
 }
 
@@ -28,7 +33,7 @@ export async function createOffice(req: Request, res: Response) {
     const office = await officeService.createOffice(data, req.user!.id);
     return successResponse(res, office, "Office created successfully", 201);
   } catch (error: any) {
-    return errorResponse(res, error.message, 400);
+    return errorResponse(res, error?.errors?.[0]?.message || error.message, 400);
   }
 }
 
@@ -38,7 +43,7 @@ export async function updateOffice(req: Request, res: Response) {
     const office = await officeService.updateOffice(String(req.params.id), data);
     return successResponse(res, office, "Office updated successfully");
   } catch (error: any) {
-    return errorResponse(res, error.message, 400);
+    return errorResponse(res, error?.errors?.[0]?.message || error.message, 400);
   }
 }
 
@@ -47,6 +52,6 @@ export async function deleteOffice(req: Request, res: Response) {
     await officeService.deleteOffice(String(req.params.id));
     return successResponse(res, null, "Office deleted successfully");
   } catch (error: any) {
-    return errorResponse(res, error.message, 400);
+    return errorResponse(res, error?.errors?.[0]?.message || error.message, 400);
   }
 }

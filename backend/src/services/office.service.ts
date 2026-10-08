@@ -1,5 +1,6 @@
 import Office from "../models/Office";
 import User from "../models/User";
+import { normalizeIp } from "../utils/ip.utils";
 
 export interface OfficeInput {
   name: string;
@@ -7,7 +8,12 @@ export interface OfficeInput {
   latitude: number;
   longitude: number;
   radiusMeters?: number;
+  wifiIps?: string[];
   isActive?: boolean;
+}
+
+function cleanIps(ips: string[] | undefined) {
+  return Array.from(new Set((ips || []).map(normalizeIp).filter(Boolean)));
 }
 
 function isDuplicateKeyError(error: any) {
@@ -45,6 +51,7 @@ export async function createOffice(data: OfficeInput, createdBy: string) {
       latitude: data.latitude,
       longitude: data.longitude,
       radiusMeters: data.radiusMeters ?? 100,
+      wifiIps: cleanIps(data.wifiIps),
       isActive: data.isActive ?? true,
       createdBy,
     });
@@ -63,6 +70,7 @@ export async function updateOffice(id: string, data: Partial<OfficeInput>) {
   if (data.latitude !== undefined) office.latitude = data.latitude;
   if (data.longitude !== undefined) office.longitude = data.longitude;
   if (data.radiusMeters !== undefined) office.radiusMeters = data.radiusMeters;
+  if (data.wifiIps !== undefined) office.wifiIps = cleanIps(data.wifiIps);
   if (data.isActive !== undefined) office.isActive = data.isActive;
 
   try {

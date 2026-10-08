@@ -6,6 +6,7 @@ export interface IOffice extends Document {
   latitude: number;
   longitude: number;
   radiusMeters: number;
+  wifiIps: string[];
   isActive: boolean;
   createdBy?: mongoose.Types.ObjectId;
   createdAt: Date;
@@ -19,6 +20,8 @@ const OfficeSchema = new Schema<IOffice>(
     latitude: { type: Number, required: true, min: -90, max: 90 },
     longitude: { type: Number, required: true, min: -180, max: 180 },
     radiusMeters: { type: Number, default: 100, min: 10 },
+    // Public IPs of the office internet connection; requests from these count as "on office Wi-Fi".
+    wifiIps: { type: [String], default: [] },
     isActive: { type: Boolean, default: true },
     createdBy: { type: Schema.Types.ObjectId, ref: "User" },
   },

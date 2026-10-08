@@ -16,6 +16,7 @@ import {
   handleUpdateStatus,
   handleToggleOvertime,
   handleGetOvertime,
+  handleGetNetworkStatus,
 } from "../controllers/attendance.controller";
 import { authenticate } from "../middleware/auth.middleware";
 import { requireManagerOrAdmin } from "../middleware/role.middleware";
@@ -34,6 +35,7 @@ router.use(authenticate);
 router.post("/punch-in", handlePunchIn);
 router.post("/punch-out", handlePunchOut);
 router.patch("/toggle-overtime", handleToggleOvertime);
+router.get("/network-status", handleGetNetworkStatus);
 
 // Break management
 router.post("/start-break", handleStartBreak);

@@ -12,6 +12,8 @@ import {
   Plus,
   Trash2,
   Users,
+  Wifi,
+  X,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,7 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { officeAPI } from "@/lib/api";
+import { attendanceAPI, officeAPI } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
 
 interface OfficeForm {
@@ -36,6 +38,7 @@ interface OfficeForm {
   latitude: string;
   longitude: string;
   radiusMeters: string;
+  wifiIps: string[];
   isActive: boolean;
 }
 
@@ -45,8 +48,12 @@ const emptyForm: OfficeForm = {
   latitude: "",
   longitude: "",
   radiusMeters: "100",
+  wifiIps: [],
   isActive: true,
 };
+
+const IPV4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+const looksLikeIp = (value: string) => IPV4.test(value) || (value.includes(":") && /^[0-9a-f:.]+$/i.test(value));
 
 export default function OfficesPage() {
   const { user } = useAuthStore();
@@ -57,6 +64,8 @@ export default function OfficesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<OfficeForm>(emptyForm);
   const [locating, setLocating] = useState(false);
+  const [wifiInput, setWifiInput] = useState("");
+  const [detectingIp, setDetectingIp] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["offices"],
@@ -71,6 +80,7 @@ export default function OfficesPage() {
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["offices"] });
     queryClient.invalidateQueries({ queryKey: ["officesActive"] });
+    queryClient.invalidateQueries({ queryKey: ["attendance", "network-status"] });
   };
 
   const saveMutation = useMutation({
@@ -111,8 +121,10 @@ export default function OfficesPage() {
       latitude: String(office.latitude ?? ""),
       longitude: String(office.longitude ?? ""),
       radiusMeters: String(office.radiusMeters ?? 100),
+      wifiIps: Array.isArray(office.wifiIps) ? office.wifiIps : [],
       isActive: office.isActive !== false,
     });
+    setWifiInput("");
     setDialogOpen(true);
   };
 
@@ -120,6 +132,37 @@ export default function OfficesPage() {
     setDialogOpen(false);
     setEditingId(null);
     setForm(emptyForm);
+    setWifiInput("");
+  };
+
+  const addWifiIp = (raw: string) => {
+    const ip = raw.trim().toLowerCase();
+    if (!ip) return false;
+    if (!looksLikeIp(ip)) {
+      toast.error(`"${raw.trim()}" is not a valid IP address`);
+      return false;
+    }
+    if (form.wifiIps.includes(ip)) {
+      toast.info(`${ip} is already added`);
+      return false;
+    }
+    setForm((f) => ({ ...f, wifiIps: [...f.wifiIps, ip] }));
+    setWifiInput("");
+    return true;
+  };
+
+  const addCurrentNetworkIp = async () => {
+    setDetectingIp(true);
+    try {
+      const res = await attendanceAPI.getNetworkStatus();
+      const ip = res.data.data?.ip as string | undefined;
+      if (!ip) throw new Error("Could not detect your network IP");
+      if (addWifiIp(ip)) toast.success(`Added this network's IP ${ip}`);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || err.message || "Could not detect your network IP");
+    } finally {
+      setDetectingIp(false);
+    }
   };
 
   const captureCurrentLocation = () => {
@@ -175,6 +218,7 @@ export default function OfficesPage() {
       latitude,
       longitude,
       radiusMeters,
+      wifiIps: form.wifiIps,
       isActive: form.isActive,
     });
   };
@@ -200,7 +244,8 @@ export default function OfficesPage() {
             Offices
           </h1>
           <p className="text-muted-foreground mt-1 text-sm sm:text-base">
-            Employees can punch in and out only within the allowed radius of their assigned office.
+            Employees can punch in and out within the allowed radius of their assigned office, or
+            while connected to its Wi-Fi.
           </p>
         </div>
         <Button className="gap-2" onClick={openCreate}>
@@ -236,6 +281,7 @@ export default function OfficesPage() {
                   <th className="px-4 py-3 font-semibold">Office</th>
                   <th className="px-4 py-3 font-semibold">Location</th>
                   <th className="px-4 py-3 font-semibold">Radius</th>
+                  <th className="px-4 py-3 font-semibold">Office Wi-Fi</th>
                   <th className="px-4 py-3 font-semibold">Employees</th>
                   <th className="px-4 py-3 font-semibold">Status</th>
                   <th className="px-4 py-3 font-semibold text-right">Actions</th>
@@ -266,6 +312,23 @@ export default function OfficesPage() {
                         </a>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">{office.radiusMeters ?? 100} m</td>
+                      <td className="px-4 py-3">
+                        {office.wifiIps?.length ? (
+                          <div className="flex flex-wrap gap-1">
+                            {office.wifiIps.map((ip: string) => (
+                              <span
+                                key={ip}
+                                className="inline-flex items-center gap-1 rounded bg-sky-50 px-1.5 py-0.5 font-mono text-xs text-sky-700"
+                              >
+                                <Wifi className="w-3 h-3" />
+                                {ip}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Not set</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         <span className="inline-flex items-center gap-1 text-slate-700">
                           <Users className="w-3.5 h-3.5 text-slate-400" />
@@ -319,7 +382,7 @@ export default function OfficesPage() {
       )}
 
       <Dialog open={dialogOpen} onOpenChange={(open) => (open ? setDialogOpen(true) : closeDialog())}>
-        <DialogContent className="max-w-lg w-[95vw]">
+        <DialogContent className="max-w-lg w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingId ? "Edit Office" : "Add Office"}</DialogTitle>
             <DialogDescription>
@@ -407,6 +470,68 @@ export default function OfficesPage() {
                   onCheckedChange={(checked) => setForm({ ...form, isActive: checked })}
                 />
               </div>
+            </div>
+
+            <div className="space-y-2 rounded-md border p-3">
+              <div>
+                <Label className="flex items-center gap-1.5">
+                  <Wifi className="w-4 h-4" />
+                  Office Wi-Fi (public IP)
+                </Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Employees connected to this network can punch in/out even if their location is not
+                  accurate. Connect to the office Wi-Fi and click &quot;Add this network&quot;.
+                </p>
+              </div>
+
+              {form.wifiIps.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {form.wifiIps.map((ip) => (
+                    <span
+                      key={ip}
+                      className="inline-flex items-center gap-1 rounded-md bg-sky-50 border border-sky-200 pl-2 pr-1 py-0.5 font-mono text-xs text-sky-800"
+                    >
+                      {ip}
+                      <button
+                        type="button"
+                        className="rounded p-0.5 hover:bg-sky-100"
+                        onClick={() => setForm((f) => ({ ...f, wifiIps: f.wifiIps.filter((v) => v !== ip) }))}
+                        aria-label={`Remove ${ip}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <Input
+                  value={wifiInput}
+                  onChange={(e) => setWifiInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addWifiIp(wifiInput);
+                    }
+                  }}
+                  placeholder="e.g. 103.21.58.10"
+                  className="font-mono text-sm"
+                />
+                <Button type="button" variant="outline" onClick={() => addWifiIp(wifiInput)}>
+                  Add
+                </Button>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full gap-2"
+                onClick={addCurrentNetworkIp}
+                disabled={detectingIp}
+              >
+                {detectingIp ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wifi className="w-4 h-4" />}
+                Add this network
+              </Button>
             </div>
 
             <DialogFooter>

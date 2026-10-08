@@ -10,6 +10,12 @@ export enum AttendanceStatus {
   HOLIDAY = "HOLIDAY",
 }
 
+export enum PunchMethod {
+  LOCATION = "LOCATION",
+  WIFI = "WIFI",
+  WFH = "WFH",
+}
+
 export interface IAttendance extends Document {
   userId: mongoose.Types.ObjectId;
   date: Date;
@@ -25,6 +31,10 @@ export interface IAttendance extends Document {
     lng: number;
     address?: string;
   };
+  punchInMethod?: PunchMethod;
+  punchOutMethod?: PunchMethod;
+  punchInIp?: string;
+  punchOutIp?: string;
   breaks: Array<{
     startTime: Date;
     endTime?: Date;
@@ -61,6 +71,10 @@ const AttendanceSchema = new Schema<IAttendance>(
       lng: Number,
       address: String,
     },
+    punchInMethod: { type: String, enum: Object.values(PunchMethod) },
+    punchOutMethod: { type: String, enum: Object.values(PunchMethod) },
+    punchInIp: String,
+    punchOutIp: String,
     breaks: [
       {
         startTime: Date,

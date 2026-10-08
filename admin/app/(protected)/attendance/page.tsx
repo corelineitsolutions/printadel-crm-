@@ -24,7 +24,9 @@ import {
   ListRestart,
   Image as ImageIcon,
   Eye,
-  X
+  X,
+  Wifi,
+  WifiOff
 } from "lucide-react";
 import { attendanceAPI, api, productivityAPI } from "@/lib/api";
 import {
@@ -219,6 +221,23 @@ export default function AttendancePage() {
     refetchInterval: 30000, // Refetch every 30 seconds
   });
 
+  const { data: networkStatus, isFetching: isCheckingNetwork, refetch: recheckNetwork } = useQuery({
+    queryKey: ["attendance", "network-status"],
+    queryFn: async () => {
+      const response = await attendanceAPI.getNetworkStatus();
+      return response.data.data as {
+        ip: string;
+        onOfficeWifi: boolean;
+        officeName: string | null;
+        officeHasWifi?: boolean;
+      };
+    },
+    refetchInterval: 60000,
+    refetchOnWindowFocus: true,
+  });
+  const onOfficeWifi = !!networkStatus?.onOfficeWifi;
+  const canVerifyPresence = onOfficeWifi || !!location;
+
   // Sync punch status with Auth Store
   useEffect(() => {
     if (attendance) {
@@ -351,7 +370,7 @@ export default function AttendancePage() {
   // Punch In mutation
   const punchInMutation = useMutation({
     mutationFn: (isWFH: boolean) => {
-      if (!location) throw new Error("Location not available");
+      if (!canVerifyPresence) throw new Error("Location not available");
       return attendanceAPI.punchIn(location, isWFH);
     },
     onSuccess: () => {
@@ -366,7 +385,7 @@ export default function AttendancePage() {
   // Punch Out mutation
   const punchOutMutation = useMutation({
     mutationFn: async ({ summary, activities }: { summary: string; activities: WorkEntry[] }) => {
-      if (!location) throw new Error("Location not available");
+      if (!canVerifyPresence) throw new Error("Location not available");
       await attendanceAPI.punchOut(location, summary);
 
       let activityError: string | null = null;
@@ -712,6 +731,39 @@ export default function AttendancePage() {
                           )}
                         </div>
                       ) : null}
+
+                      <div className="mt-3 pt-3 border-t flex items-center justify-between gap-2">
+                        <div
+                          className={`flex items-center gap-2 text-sm min-w-0 ${
+                            onOfficeWifi ? "text-green-600" : "text-muted-foreground"
+                          }`}
+                        >
+                          {onOfficeWifi ? <Wifi className="w-4 h-4 shrink-0" /> : <WifiOff className="w-4 h-4 shrink-0" />}
+                          <span className="truncate">
+                            {networkStatus === undefined
+                              ? "Checking office Wi-Fi..."
+                              : onOfficeWifi
+                                ? `Connected to ${networkStatus.officeName || "office"} Wi-Fi`
+                                : "Not on office Wi-Fi"}
+                          </span>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 gap-1 text-xs shrink-0"
+                          onClick={() => recheckNetwork()}
+                          disabled={isCheckingNetwork}
+                        >
+                          <RotateCcw className={`w-3 h-3 ${isCheckingNetwork ? "animate-spin" : ""}`} />
+                          Check
+                        </Button>
+                      </div>
+                      {onOfficeWifi && !location && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          You can punch in and out without location while on the office Wi-Fi.
+                        </p>
+                      )}
                     </div>
 
                     {!isPunchedIn && !isPunchedOut && (
@@ -738,7 +790,7 @@ export default function AttendancePage() {
                         size="lg"
                         className={`w-full h-12 ${isWFHMode ? "bg-blue-600 hover:bg-blue-700" : "bg-green-600 hover:bg-green-700"}`}
                         onClick={() => punchInMutation.mutate(isWFHMode)}
-                        disabled={!location || punchInMutation.isPending || isDetectingLocation}
+                        disabled={!canVerifyPresence || punchInMutation.isPending || (isDetectingLocation && !onOfficeWifi)}
                       >
                         {punchInMutation.isPending ? (
                           <>
@@ -780,7 +832,12 @@ export default function AttendancePage() {
                           size="lg"
                           className="w-full bg-red-600 hover:bg-red-700 h-12"
                           onClick={() => setShowPunchOutDialog(true)}
-                          disabled={!location || punchOutMutation.isPending || isDetectingLocation || isOnBreak}
+                          disabled={
+                            !canVerifyPresence ||
+                            punchOutMutation.isPending ||
+                            (isDetectingLocation && !onOfficeWifi) ||
+                            isOnBreak
+                          }
                         >
                           {punchOutMutation.isPending ? (
                             <>
@@ -1826,7 +1883,7 @@ export default function AttendancePage() {
         </DialogContent>
       </Dialog>
       {/* Location Permission Dialog */}
-      <Dialog open={showLocationPrompt && !isPunchedOut} onOpenChange={setShowLocationPrompt}>
+      <Dialog open={showLocationPrompt && !isPunchedOut && !onOfficeWifi} onOpenChange={setShowLocationPrompt}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader className="text-left">
             <DialogTitle className="flex items-center gap-2 pr-6">
@@ -1837,7 +1894,7 @@ export default function AttendancePage() {
           <div className="space-y-3 text-sm">
             <p className="text-muted-foreground">
               Your location is needed to punch in and punch out. You must be within your
-              office radius (100 m) to mark attendance.
+              office radius (100 m) or connected to the office Wi-Fi to mark attendance.
             </p>
             {locationPermission === "denied" ? (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900 space-y-1.5">
