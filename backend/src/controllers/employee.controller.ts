@@ -71,6 +71,7 @@ const updateEmployeeSchema = z.object({
   hourlyRate: z.number().nullable().optional(),
   overtimeMultiplier: z.number().nullable().optional(),
   isActive: z.boolean().optional(),
+  allowWorkFromHome: z.boolean().optional(),
   address: z.string().nullable().optional(),
   emergencyContact: z.string().nullable().optional(),
   dateOfBirth: z.string().or(z.date()).nullable().optional(),
