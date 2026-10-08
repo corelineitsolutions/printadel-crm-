@@ -731,7 +731,21 @@ export default function AttendancePage() {
                             </p>
                           )}
                         </div>
-                      ) : null}
+                      ) : (
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm text-muted-foreground">Location not detected</span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 gap-1 text-xs shrink-0"
+                            onClick={requestLocation}
+                          >
+                            <MapPin className="w-3 h-3" />
+                            Allow location
+                          </Button>
+                        </div>
+                      )}
 
                       <div className="mt-3 pt-3 border-t flex items-center justify-between gap-2">
                         <div
