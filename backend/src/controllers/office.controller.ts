@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { z } from "zod";
 import { successResponse, errorResponse } from "../utils/response.utils";
 import * as officeService from "../services/office.service";
-import { isPrivateIp, isValidIp } from "../utils/ip.utils";
+import { getClientIp, isPrivateIp, isValidIp } from "../utils/ip.utils";
 
 const officeSchema = z.object({
   name: z.string().trim().min(2).max(80),
@@ -50,6 +50,15 @@ export async function updateOffice(req: Request, res: Response) {
     const data = officeSchema.partial().parse(req.body);
     const office = await officeService.updateOffice(String(req.params.id), data);
     return successResponse(res, office, "Office updated successfully");
+  } catch (error: any) {
+    return errorResponse(res, error?.errors?.[0]?.message || error.message, 400);
+  }
+}
+
+export async function addCurrentWifiIp(req: Request, res: Response) {
+  try {
+    const result = await officeService.addOfficeWifiIp(String(req.params.id), getClientIp(req));
+    return successResponse(res, result, `Added ${result.ip} to ${result.office.name}`);
   } catch (error: any) {
     return errorResponse(res, error?.errors?.[0]?.message || error.message, 400);
   }

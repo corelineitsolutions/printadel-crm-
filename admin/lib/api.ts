@@ -309,6 +309,7 @@ export const officeAPI = {
     isActive?: boolean;
   }) => api.post("/offices", data),
   updateOffice: (id: string, data: any) => api.put(`/offices/${id}`, data),
+  addCurrentWifiIp: (id: string) => api.post(`/offices/${id}/wifi-ips/current`),
   deleteOffice: (id: string) => api.delete(`/offices/${id}`),
 };
 

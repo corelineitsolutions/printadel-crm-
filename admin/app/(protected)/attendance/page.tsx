@@ -28,7 +28,7 @@ import {
   Wifi,
   WifiOff
 } from "lucide-react";
-import { attendanceAPI, api, productivityAPI } from "@/lib/api";
+import { attendanceAPI, api, officeAPI, productivityAPI } from "@/lib/api";
 import {
   WorkActivitySelector,
   WorkEntry,
@@ -229,6 +229,7 @@ export default function AttendancePage() {
         ip: string;
         ipIsPrivate?: boolean;
         onOfficeWifi: boolean;
+        officeId: string | null;
         officeName: string | null;
         officeHasWifi?: boolean;
       };
@@ -238,6 +239,29 @@ export default function AttendancePage() {
   });
   const onOfficeWifi = !!networkStatus?.onOfficeWifi;
   const canVerifyPresence = onOfficeWifi || !!location;
+  const isAdmin = user?.role === "ADMIN";
+  const canAddWifiIp = isAdmin && !!networkStatus && !onOfficeWifi && !networkStatus.ipIsPrivate;
+
+  const { data: activeOffices = [] } = useQuery({
+    queryKey: ["offices", "wifi-targets"],
+    queryFn: async () => {
+      const res = await officeAPI.getOffices({ activeOnly: true });
+      return (Array.isArray(res.data.data) ? res.data.data : []) as { _id?: string; id?: string; name: string }[];
+    },
+    enabled: canAddWifiIp && !networkStatus?.officeId,
+  });
+  const [wifiTargetOfficeId, setWifiTargetOfficeId] = useState("");
+  const wifiOfficeId = networkStatus?.officeId || wifiTargetOfficeId;
+
+  const addWifiIpMutation = useMutation({
+    mutationFn: (officeId: string) => officeAPI.addCurrentWifiIp(officeId),
+    onSuccess: (res) => {
+      toast.success(res.data.message || "Office Wi-Fi IP added");
+      queryClient.invalidateQueries({ queryKey: ["offices"] });
+      recheckNetwork();
+    },
+    onError: (error: any) => toast.error(error.response?.data?.message || "Failed to add Wi-Fi IP"),
+  });
 
   // Sync punch status with Auth Store
   useEffect(() => {
@@ -783,6 +807,39 @@ export default function AttendancePage() {
                         <p className="text-xs text-muted-foreground mt-1">
                           Your network IP: <span className="font-mono">{networkStatus.ip}</span>
                         </p>
+                      )}
+                      {canAddWifiIp && (
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          {!networkStatus?.officeId && (
+                            <Select value={wifiTargetOfficeId} onValueChange={(v) => v && setWifiTargetOfficeId(v)}>
+                              <SelectTrigger className="h-8 w-44 text-xs">
+                                <SelectValue placeholder="Select office" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {activeOffices.map((o) => (
+                                  <SelectItem key={o._id || o.id} value={(o._id || o.id) as string}>
+                                    {o.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-8 gap-1.5 text-xs"
+                            disabled={!wifiOfficeId || addWifiIpMutation.isPending}
+                            onClick={() => addWifiIpMutation.mutate(wifiOfficeId)}
+                          >
+                            {addWifiIpMutation.isPending ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <Wifi className="w-3 h-3" />
+                            )}
+                            Add this IP to {networkStatus?.officeName || "office"}
+                          </Button>
+                        </div>
                       )}
                       {networkStatus?.ipIsPrivate && (
                         <p className="text-xs text-amber-600 mt-1">

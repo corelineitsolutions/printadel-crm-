@@ -114,14 +114,22 @@ async function resolveOfficeContext(userId: string, clientIp?: string) {
   const office: any = (user as any)?.office || null;
 
   let wifiOffice: any = null;
+  let checkedIps: string[] = [];
   if (clientIp) {
     if (office) {
+      checkedIps = office.wifiIps || [];
       if (office.isActive && ipInList(clientIp, office.wifiIps)) wifiOffice = office;
     } else {
       const candidates = await Office.find({ isActive: true, wifiIps: { $exists: true, $ne: [] } }).select("name wifiIps");
+      checkedIps = candidates.flatMap((o) => o.wifiIps);
       wifiOffice = candidates.find((o) => ipInList(clientIp, o.wifiIps)) || null;
     }
   }
+
+  console.log(
+    `[wifi-check] user=${userId} ip=${clientIp || "-"} office=${office ? `"${office.name}"` : "none (any office)"} ` +
+      `savedIps=[${checkedIps.join(", ")}] match=${wifiOffice ? `"${wifiOffice.name}"` : "no"}`
+  );
   return { office, wifiOffice };
 }
 
@@ -132,6 +140,7 @@ export async function getNetworkStatus(userId: string, clientIp: string) {
     // True when the server only sees a proxy/LAN address, i.e. the real visitor IP is not reaching the backend.
     ipIsPrivate: isPrivateIp(clientIp),
     onOfficeWifi: !!wifiOffice,
+    officeId: office ? String(office._id) : null,
     officeName: wifiOffice?.name || office?.name || null,
     officeHasWifi: office ? (office.wifiIps || []).length > 0 : undefined,
   };

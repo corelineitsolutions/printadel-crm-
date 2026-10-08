@@ -1,6 +1,6 @@
 import Office from "../models/Office";
 import User from "../models/User";
-import { normalizeIp } from "../utils/ip.utils";
+import { isPrivateIp, normalizeIp } from "../utils/ip.utils";
 
 export interface OfficeInput {
   name: string;
@@ -79,6 +79,20 @@ export async function updateOffice(id: string, data: Partial<OfficeInput>) {
     if (isDuplicateKeyError(error)) throw new Error("An office with this name already exists");
     throw error;
   }
+}
+
+export async function addOfficeWifiIp(id: string, ip: string) {
+  const office = await Office.findById(id);
+  if (!office) throw new Error("Office not found");
+  const value = normalizeIp(ip);
+  if (!value || isPrivateIp(value)) {
+    throw new Error(`The server sees ${value || "no IP"}, which is not a public IP, so it cannot be used as office Wi-Fi.`);
+  }
+  if (!office.wifiIps.includes(value)) {
+    office.wifiIps = [...office.wifiIps, value];
+    await office.save();
+  }
+  return { office, ip: value };
 }
 
 export async function deleteOffice(id: string) {
