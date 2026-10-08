@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import Attendance, { AttendanceStatus, PunchMethod } from "../models/Attendance";
 import User, { UserRole } from "../models/User";
 import Office from "../models/Office";
-import { ipInList } from "../utils/ip.utils";
+import { ipInList, isPrivateIp } from "../utils/ip.utils";
 import Setting from "../models/Setting";
 import WFHAssignment from "../models/WFHAssignment";
 import Leave, { LeaveStatus, LeaveType } from "../models/Leave";
@@ -129,6 +129,8 @@ export async function getNetworkStatus(userId: string, clientIp: string) {
   const { office, wifiOffice } = await resolveOfficeContext(userId, clientIp);
   return {
     ip: clientIp,
+    // True when the server only sees a proxy/LAN address, i.e. the real visitor IP is not reaching the backend.
+    ipIsPrivate: isPrivateIp(clientIp),
     onOfficeWifi: !!wifiOffice,
     officeName: wifiOffice?.name || office?.name || null,
     officeHasWifi: office ? (office.wifiIps || []).length > 0 : undefined,

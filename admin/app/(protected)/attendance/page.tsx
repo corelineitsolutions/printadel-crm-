@@ -227,6 +227,7 @@ export default function AttendancePage() {
       const response = await attendanceAPI.getNetworkStatus();
       return response.data.data as {
         ip: string;
+        ipIsPrivate?: boolean;
         onOfficeWifi: boolean;
         officeName: string | null;
         officeHasWifi?: boolean;
@@ -762,6 +763,16 @@ export default function AttendancePage() {
                       {onOfficeWifi && !location && (
                         <p className="text-xs text-muted-foreground mt-1">
                           You can punch in and out without location while on the office Wi-Fi.
+                        </p>
+                      )}
+                      {networkStatus?.ip && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Your network IP: <span className="font-mono">{networkStatus.ip}</span>
+                        </p>
+                      )}
+                      {networkStatus?.ipIsPrivate && (
+                        <p className="text-xs text-amber-600 mt-1">
+                          The server cannot see your public IP, so office Wi-Fi cannot be detected. Ask your administrator to update the backend.
                         </p>
                       )}
                     </div>

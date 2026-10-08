@@ -55,6 +55,25 @@ const emptyForm: OfficeForm = {
 const IPV4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
 const looksLikeIp = (value: string) => IPV4.test(value) || (value.includes(":") && /^[0-9a-f:.]+$/i.test(value));
 
+/** LAN addresses shown by ipconfig / Wi-Fi settings; the server never sees these. */
+const isLocalIp = (value: string) => {
+  const ip = value.replace(/^::ffff:/i, "").toLowerCase();
+  if (IPV4.test(ip)) {
+    const [a, b] = ip.split(".").map(Number);
+    return (
+      a === 10 || a === 127 || a === 0 ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 169 && b === 254) ||
+      (a === 100 && b >= 64 && b <= 127)
+    );
+  }
+  return ip === "::1" || /^fe[89ab]/.test(ip) || /^f[cd]/.test(ip);
+};
+
+const LOCAL_IP_MESSAGE =
+  "is your computer's local address (from ipconfig / Wi-Fi settings). The server sees the office's public IP instead — connect to the office Wi-Fi and click \"Add this network\".";
+
 export default function OfficesPage() {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
@@ -142,6 +161,10 @@ export default function OfficesPage() {
       toast.error(`"${raw.trim()}" is not a valid IP address`);
       return false;
     }
+    if (isLocalIp(ip)) {
+      toast.error(`${ip} ${LOCAL_IP_MESSAGE}`, { duration: 8000 });
+      return false;
+    }
     if (form.wifiIps.includes(ip)) {
       toast.info(`${ip} is already added`);
       return false;
@@ -157,6 +180,11 @@ export default function OfficesPage() {
       const res = await attendanceAPI.getNetworkStatus();
       const ip = res.data.data?.ip as string | undefined;
       if (!ip) throw new Error("Could not detect your network IP");
+      if (res.data.data?.ipIsPrivate) {
+        throw new Error(
+          `The server sees ${ip}, which is not a public IP. The backend may not be updated/restarted yet, or Nginx is not forwarding the visitor IP.`
+        );
+      }
       if (addWifiIp(ip)) toast.success(`Added this network's IP ${ip}`);
     } catch (err: any) {
       toast.error(err.response?.data?.message || err.message || "Could not detect your network IP");
@@ -315,15 +343,26 @@ export default function OfficesPage() {
                       <td className="px-4 py-3">
                         {office.wifiIps?.length ? (
                           <div className="flex flex-wrap gap-1">
-                            {office.wifiIps.map((ip: string) => (
-                              <span
-                                key={ip}
-                                className="inline-flex items-center gap-1 rounded bg-sky-50 px-1.5 py-0.5 font-mono text-xs text-sky-700"
-                              >
-                                <Wifi className="w-3 h-3" />
-                                {ip}
-                              </span>
-                            ))}
+                            {office.wifiIps.map((ip: string) =>
+                              isLocalIp(ip) ? (
+                                <span
+                                  key={ip}
+                                  title={`${ip} ${LOCAL_IP_MESSAGE}`}
+                                  className="inline-flex items-center gap-1 rounded bg-rose-50 px-1.5 py-0.5 font-mono text-xs text-rose-700"
+                                >
+                                  <Wifi className="w-3 h-3" />
+                                  {ip} (local — won&apos;t work)
+                                </span>
+                              ) : (
+                                <span
+                                  key={ip}
+                                  className="inline-flex items-center gap-1 rounded bg-sky-50 px-1.5 py-0.5 font-mono text-xs text-sky-700"
+                                >
+                                  <Wifi className="w-3 h-3" />
+                                  {ip}
+                                </span>
+                              )
+                            )}
                           </div>
                         ) : (
                           <span className="text-xs text-muted-foreground">Not set</span>
@@ -489,9 +528,15 @@ export default function OfficesPage() {
                   {form.wifiIps.map((ip) => (
                     <span
                       key={ip}
-                      className="inline-flex items-center gap-1 rounded-md bg-sky-50 border border-sky-200 pl-2 pr-1 py-0.5 font-mono text-xs text-sky-800"
+                      title={isLocalIp(ip) ? `${ip} ${LOCAL_IP_MESSAGE}` : undefined}
+                      className={`inline-flex items-center gap-1 rounded-md border pl-2 pr-1 py-0.5 font-mono text-xs ${
+                        isLocalIp(ip)
+                          ? "bg-rose-50 border-rose-200 text-rose-800"
+                          : "bg-sky-50 border-sky-200 text-sky-800"
+                      }`}
                     >
                       {ip}
+                      {isLocalIp(ip) && " (local — remove)"}
                       <button
                         type="button"
                         className="rounded p-0.5 hover:bg-sky-100"

@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { z } from "zod";
 import { successResponse, errorResponse } from "../utils/response.utils";
 import * as officeService from "../services/office.service";
-import { isValidIp } from "../utils/ip.utils";
+import { isPrivateIp, isValidIp } from "../utils/ip.utils";
 
 const officeSchema = z.object({
   name: z.string().trim().min(2).max(80),
@@ -11,7 +11,15 @@ const officeSchema = z.object({
   longitude: z.number().min(-180).max(180),
   radiusMeters: z.number().min(10).max(5000).optional(),
   wifiIps: z
-    .array(z.string().trim().refine(isValidIp, (ip) => ({ message: `"${ip}" is not a valid IP address` })))
+    .array(
+      z
+        .string()
+        .trim()
+        .refine(isValidIp, (ip) => ({ message: `"${ip}" is not a valid IP address` }))
+        .refine((ip) => !isPrivateIp(ip), (ip) => ({
+          message: `${ip} is a local network address. Add the office's public IP instead: connect to the office Wi-Fi and click "Add this network".`,
+        }))
+    )
     .max(20)
     .optional(),
   isActive: z.boolean().optional(),
