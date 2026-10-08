@@ -315,7 +315,7 @@ export default function AttendancePage() {
       const response = await api.get("/reports/attendance", { params });
       return response.data.data;
     },
-    enabled: !!user,
+    enabled: !!user && isAdminOrManager,
     refetchInterval: reportStartDate === format(new Date(), "yyyy-MM-dd") && reportEndDate === format(new Date(), "yyyy-MM-dd") ? 30000 : false,
   });
 
@@ -664,10 +664,12 @@ export default function AttendancePage() {
             <ListRestart className="w-4 h-4" />
             Daily Tracking
           </TabsTrigger>
-          <TabsTrigger value="report" className="gap-2">
-            <BarChart3 className="w-4 h-4" />
-            Attendance Report
-          </TabsTrigger>
+          {isAdminOrManager && (
+            <TabsTrigger value="report" className="gap-2">
+              <BarChart3 className="w-4 h-4" />
+              Attendance Report
+            </TabsTrigger>
+          )}
           <TabsTrigger value="overtime" className="gap-2">
             <Clock className="w-4 h-4" />
             Overtime Tracking
@@ -1194,6 +1196,7 @@ export default function AttendancePage() {
         </TabsContent>
 
         {/* Tab 2: Attendance Report (Detailed Range Analysis) */}
+        {isAdminOrManager && (
         <TabsContent value="report" className="space-y-6">
           {/* Filters are now integrated into the Detailed Log Table below */}
 
@@ -1598,6 +1601,7 @@ export default function AttendancePage() {
             </CardContent>
           </Card>
         </TabsContent>
+        )}
 
         {/* Tab 3: Overtime System */}
         <TabsContent value="overtime" className="space-y-6">

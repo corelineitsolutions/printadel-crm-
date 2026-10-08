@@ -301,12 +301,15 @@ export async function punchIn(
 
   // Validate WFH authorization if requested
   if (isWFH) {
-    const activeWFH = await WFHAssignment.findOne({
-      userId,
-      startDate: { $lte: today },
-      endDate: { $gte: getISTStartOfDay(today) },
-      isActive: true,
-    });
+    const wfhUser = await User.findById(userId).select("allowWorkFromHome");
+    const activeWFH =
+      wfhUser?.allowWorkFromHome ||
+      (await WFHAssignment.findOne({
+        userId,
+        startDate: { $lte: today },
+        endDate: { $gte: getISTStartOfDay(today) },
+        isActive: true,
+      }));
 
     if (!activeWFH) {
       throw new Error("You are not authorized for Work From Home today. Please punch in from the office.");

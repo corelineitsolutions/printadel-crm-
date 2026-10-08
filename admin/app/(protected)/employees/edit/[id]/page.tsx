@@ -67,6 +67,7 @@ export default function EditEmployeePage() {
   const { user } = useAuthStore();
   const isAdmin = user?.role === "ADMIN";
   const [isActive, setIsActive] = useState(true);
+  const [allowWorkFromHome, setAllowWorkFromHome] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -142,6 +143,7 @@ export default function EditEmployeePage() {
         hourlyRate: employeeData.hourlyRate != null ? employeeData.hourlyRate.toString() : "",
       });
       setIsActive(employeeData.isActive ?? true);
+      setAllowWorkFromHome(!!employeeData.allowWorkFromHome);
     }
   }, [employeeData, reset]);
 
@@ -226,6 +228,7 @@ export default function EditEmployeePage() {
       department: data.department === "none" || !data.department || data.department.trim() === "" ? null : data.department.trim(),
       monthlySalary: salary,
       isActive,
+      allowWorkFromHome,
       roleName: data.roleName || null,
       managerId: data.managerId === "none" || !data.managerId || data.managerId.trim() === "" ? null : data.managerId,
       officeId: data.officeId === "none" || !data.officeId ? null : data.officeId,
@@ -578,6 +581,17 @@ export default function EditEmployeePage() {
               <p className="text-xs text-muted-foreground">
                 The employee must be within the office radius to punch in and punch out.
               </p>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="allowWorkFromHome"
+                checked={allowWorkFromHome}
+                onCheckedChange={(checked) => setAllowWorkFromHome(!!checked)}
+              />
+              <Label htmlFor="allowWorkFromHome" className="text-sm font-normal cursor-pointer">
+                Allow Work From Home (can punch in with WFH mode any day, no office location needed)
+              </Label>
             </div>
           </CardContent>
         </Card>

@@ -32,6 +32,7 @@ export interface IUser extends Document {
   managerId?: mongoose.Types.ObjectId | null;
   officeId?: mongoose.Types.ObjectId | null;
   isActive: boolean;
+  allowWorkFromHome: boolean;
   emergencyContact?: string | null;
   dateOfBirth?: Date | null;
   gender?: "M" | "F" | "O" | null;
@@ -61,6 +62,8 @@ const UserSchema = new Schema<IUser>(
     managerId: { type: Schema.Types.ObjectId, ref: "User" },
     officeId: { type: Schema.Types.ObjectId, ref: "Office", default: null },
     isActive: { type: Boolean, default: true },
+    // Lets the employee punch in with WFH mode on any day without a WFH assignment.
+    allowWorkFromHome: { type: Boolean, default: false },
     emergencyContact: String,
     dateOfBirth: Date,
     gender: { type: String, enum: ["M", "F", "O", null], default: null },

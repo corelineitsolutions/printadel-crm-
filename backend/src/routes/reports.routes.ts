@@ -24,8 +24,8 @@ router.use(authenticate);
 // Dashboard analytics - All authenticated users
 router.get("/dashboard-analytics", handleDashboardAnalytics);
 
-// Attendance report - All authenticated users (role-based filtering in service)
-router.get("/attendance", handleAttendanceReport);
+// Attendance report - ADMIN (incl. HR), MANAGER only
+router.get("/attendance", requireRoles(UserRole.ADMIN, UserRole.MANAGER), handleAttendanceReport);
 
 // Task completion report - All authenticated users
 router.get("/tasks", handleTaskCompletionReport);

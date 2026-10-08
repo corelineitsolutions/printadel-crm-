@@ -587,7 +587,7 @@ export default function NewEmployeePage() {
                 htmlFor="allowWorkFromHome"
                 className="text-sm font-normal cursor-pointer"
               >
-                Allow Work From Home (bypass geofence restrictions)
+                Allow Work From Home (can punch in with WFH mode any day, no office location needed)
               </Label>
             </div>
           </CardContent>

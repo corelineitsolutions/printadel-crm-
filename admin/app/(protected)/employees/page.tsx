@@ -46,7 +46,7 @@ export default function EmployeesPage() {
   const [employeeTypeFilter, setEmployeeTypeFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const limit = 12;
+  const limit = 50;
 
   const isAdmin = user?.role === "ADMIN";
 

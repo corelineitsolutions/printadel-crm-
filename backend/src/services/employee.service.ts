@@ -169,7 +169,7 @@ export const getAllEmployees = async (
   // Fetch employees with pagination
   const [employees, total, managersCount, activeCount] = await Promise.all([
     User.find(where)
-      .select("id email fullName role roleName employeeType designation department phone joinDate dateOfBirth gender monthlySalary hourlyRate overtimeMultiplier isActive managerId officeId createdAt")
+      .select("id email fullName role roleName employeeType designation department phone joinDate dateOfBirth gender allowWorkFromHome monthlySalary hourlyRate overtimeMultiplier isActive managerId officeId createdAt")
       .populate("manager", "id fullName email")
       .populate("office", "id name")
       .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
@@ -208,7 +208,7 @@ export const getEmployeeById = async (
   requestingUserUserRole: UserRole
 ) => {
   const employee = await User.findById(id)
-    .select("id email fullName role roleName employeeType designation department phone address emergencyContact dateOfBirth gender joinDate monthlySalary hourlyRate overtimeMultiplier isActive managerId officeId panCardKey aadhaarCardKey createdAt updatedAt")
+    .select("id email fullName role roleName employeeType designation department phone address emergencyContact dateOfBirth gender allowWorkFromHome joinDate monthlySalary hourlyRate overtimeMultiplier isActive managerId officeId panCardKey aadhaarCardKey createdAt updatedAt")
     .populate("manager", "id fullName email designation")
     .populate("office", "id name address latitude longitude radiusMeters");
 
@@ -310,6 +310,7 @@ export const createEmployee = async (
     emergencyContact: data.emergencyContact || undefined,
     dateOfBirth: data.dateOfBirth || undefined,
     gender: data.gender || null,
+    allowWorkFromHome: !!data.allowWorkFromHome,
     joinDate: data.joinDate || new Date(),
     managerId: data.managerId || undefined,
     officeId,
@@ -458,6 +459,9 @@ export const updateEmployee = async (
   if (data.gender !== undefined) {
     existingEmployee.gender = data.gender || null;
   }
+  if (data.allowWorkFromHome !== undefined) {
+    existingEmployee.allowWorkFromHome = !!data.allowWorkFromHome;
+  }
   if (data.dateOfBirth !== undefined) {
     existingEmployee.dateOfBirth = data.dateOfBirth ? new Date(data.dateOfBirth) : null;
   }
@@ -471,7 +475,7 @@ export const updateEmployee = async (
   await existingEmployee.save();
 
   return await User.findById(id)
-    .select("id email fullName role roleName employeeType designation department phone address emergencyContact dateOfBirth gender joinDate monthlySalary hourlyRate overtimeMultiplier isActive managerId officeId updatedAt")
+    .select("id email fullName role roleName employeeType designation department phone address emergencyContact dateOfBirth gender allowWorkFromHome joinDate monthlySalary hourlyRate overtimeMultiplier isActive managerId officeId updatedAt")
     .populate("manager", "id fullName email")
     .populate("office", "id name");
 };
