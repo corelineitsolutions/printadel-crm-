@@ -228,6 +228,7 @@ export default function AttendancePage() {
       return response.data.data as {
         ip: string;
         ipIsPrivate?: boolean;
+        allowWorkFromHome?: boolean;
         onOfficeWifi: boolean;
         officeId: string | null;
         officeName: string | null;
@@ -238,7 +239,7 @@ export default function AttendancePage() {
     refetchOnWindowFocus: true,
   });
   const onOfficeWifi = !!networkStatus?.onOfficeWifi;
-  const canVerifyPresence = onOfficeWifi || !!location;
+  const canVerifyPresence = onOfficeWifi || !!location || !!networkStatus?.allowWorkFromHome;
   const isAdmin = user?.role === "ADMIN";
   const canAddWifiIp = isAdmin && !!networkStatus && !onOfficeWifi && !networkStatus.ipIsPrivate;
 
@@ -398,9 +399,9 @@ export default function AttendancePage() {
       if (!canVerifyPresence) throw new Error("Location not available");
       return attendanceAPI.punchIn(location, isWFH);
     },
-    onSuccess: () => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["attendance"] });
-      toast.success("Punched in successfully!");
+      toast.success(res.data?.message || "Punched in successfully!");
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || "Failed to punch in");
@@ -857,7 +858,13 @@ export default function AttendancePage() {
                             <Home className="w-4 h-4" />
                             WFH Mode
                           </Label>
-                          <p className="text-xs text-muted-foreground">Requires prior authorizaton</p>
+                          {networkStatus?.allowWorkFromHome ? (
+                            <p className="text-xs text-green-600">
+                              Allowed for you — outside the office you are punched in as WFH automatically
+                            </p>
+                          ) : (
+                            <p className="text-xs text-muted-foreground">Requires prior authorization</p>
+                          )}
                         </div>
                         <Switch
                           checked={isWFHMode}

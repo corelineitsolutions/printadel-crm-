@@ -90,7 +90,8 @@ export async function handlePunchIn(req: Request, res: Response) {
     const { location, isWFH, isOvertime } = punchInSchema.parse(req.body);
     const attendance = await punchIn(req.user.userId, location, isWFH, isOvertime, getClientIp(req));
 
-    return successResponse(res, attendance, "Punched in successfully", 201);
+    const message = attendance?.isWFH ? "Punched in successfully (Work From Home)" : "Punched in successfully";
+    return successResponse(res, attendance, message, 201);
   } catch (error: any) {
     return errorResponse(res, error.message, 400);
   }

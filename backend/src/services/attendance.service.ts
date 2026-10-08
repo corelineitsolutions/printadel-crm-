@@ -135,7 +135,9 @@ async function resolveOfficeContext(userId: string, clientIp?: string) {
 
 export async function getNetworkStatus(userId: string, clientIp: string) {
   const { office, wifiOffice } = await resolveOfficeContext(userId, clientIp);
+  const user = await User.findById(userId).select("allowWorkFromHome");
   return {
+    allowWorkFromHome: !!user?.allowWorkFromHome,
     ip: clientIp,
     // True when the server only sees a proxy/LAN address, i.e. the real visitor IP is not reaching the backend.
     ipIsPrivate: isPrivateIp(clientIp),
@@ -299,24 +301,36 @@ export async function punchIn(
     throw new Error(`You have an approved ${approvedLeave.leaveType} leave for today. You cannot punch in unless the leave is cancelled.`);
   }
 
+  const wfhUser = await User.findById(userId).select("allowWorkFromHome");
+  const wfhAlwaysAllowed = !!wfhUser?.allowWorkFromHome;
+
   // Validate WFH authorization if requested
-  if (isWFH) {
-    const wfhUser = await User.findById(userId).select("allowWorkFromHome");
-    const activeWFH =
-      wfhUser?.allowWorkFromHome ||
-      (await WFHAssignment.findOne({
-        userId,
-        startDate: { $lte: today },
-        endDate: { $gte: getISTStartOfDay(today) },
-        isActive: true,
-      }));
+  if (isWFH && !wfhAlwaysAllowed) {
+    const activeWFH = await WFHAssignment.findOne({
+      userId,
+      startDate: { $lte: today },
+      endDate: { $gte: getISTStartOfDay(today) },
+      isActive: true,
+    });
 
     if (!activeWFH) {
       throw new Error("You are not authorized for Work From Home today. Please punch in from the office.");
     }
   }
 
-  const punchInMethod = isWFH ? PunchMethod.WFH : await verifyOfficePresence(userId, location, clientIp, "punch in");
+  let punchInMethod: PunchMethod;
+  if (isWFH) {
+    punchInMethod = PunchMethod.WFH;
+  } else {
+    try {
+      punchInMethod = await verifyOfficePresence(userId, location, clientIp, "punch in");
+    } catch (error) {
+      // Employees allowed to work from home are never blocked; outside the office it counts as WFH.
+      if (!wfhAlwaysAllowed) throw error;
+      isWFH = true;
+      punchInMethod = PunchMethod.WFH;
+    }
+  }
 
   // Get settings for late mark
   const shiftStartSetting = await Setting.findOne({ key: "SHIFT_START_TIME" });
@@ -424,9 +438,18 @@ export async function punchOut(
     throw new Error("Must punch in before punching out");
   }
 
-  const punchOutMethod = attendance.isWFH
-    ? PunchMethod.WFH
-    : await verifyOfficePresence(userId, location, clientIp, "punch out");
+  let punchOutMethod: PunchMethod;
+  if (attendance.isWFH) {
+    punchOutMethod = PunchMethod.WFH;
+  } else {
+    try {
+      punchOutMethod = await verifyOfficePresence(userId, location, clientIp, "punch out");
+    } catch (error) {
+      const wfhUser = await User.findById(userId).select("allowWorkFromHome");
+      if (!wfhUser?.allowWorkFromHome) throw error;
+      punchOutMethod = PunchMethod.WFH;
+    }
+  }
 
   // Handle active breaks
   const activeBreak = attendance.breaks.find(b => !b.endTime);
