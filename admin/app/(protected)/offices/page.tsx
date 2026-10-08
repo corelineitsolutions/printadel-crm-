@@ -240,13 +240,19 @@ export default function OfficesPage() {
       return;
     }
 
+    const localIps = form.wifiIps.filter(isLocalIp);
+    if (localIps.length > 0) {
+      toast.info(`Removed local address${localIps.length > 1 ? "es" : ""} ${localIps.join(", ")} — they never match office Wi-Fi.`);
+    }
+    const wifiIps = form.wifiIps.filter((ip) => !isLocalIp(ip));
+
     saveMutation.mutate({
       name: form.name.trim(),
       address: form.address.trim() || null,
       latitude,
       longitude,
       radiusMeters,
-      wifiIps: form.wifiIps,
+      wifiIps,
       isActive: form.isActive,
     });
   };
