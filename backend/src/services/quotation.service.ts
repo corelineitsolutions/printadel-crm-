@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import Quotation, { QuotationStatus } from "../models/Quotation";
+import OrderForm, { OrderFormStatus } from "../models/OrderForm";
 import User, { UserRole } from "../models/User";
 import { createNotification } from "./notification.service";
 import { NotificationType } from "../models/Notification";
@@ -28,6 +29,7 @@ export interface QuotationInput {
   notes?: string;
   terms?: string;
   assignedTo?: string | null;
+  orderFormId?: string;
 }
 
 interface Requester {
@@ -79,6 +81,7 @@ function populateQuotation(query: any) {
     .populate("assignedBy", "id fullName")
     .populate("createdBy", "id fullName")
     .populate("completedBy", "id fullName")
+    .populate("orderFormId", "formNumber")
     .populate("statusHistory.changedBy", "id fullName");
 }
 
@@ -160,7 +163,14 @@ export const quotationService = {
       terms: data.terms,
       status: QuotationStatus.PENDING,
       createdBy: requester.id,
-      statusHistory: [{ status: QuotationStatus.PENDING, changedBy: requester.id, note: "Quotation created" }],
+      orderFormId: data.orderFormId || null,
+      statusHistory: [
+        {
+          status: QuotationStatus.PENDING,
+          changedBy: requester.id,
+          note: data.orderFormId ? "Created from order form" : "Quotation created",
+        },
+      ],
     });
     const assigned = data.assignedTo ? await applyAssignment(quotation, data.assignedTo, requester) : false;
     await quotation.save();
@@ -292,6 +302,12 @@ export const quotationService = {
     if (requester.role !== UserRole.ADMIN) throw new Error("Only an admin can delete quotations");
     const deleted = await Quotation.findByIdAndDelete(id);
     if (!deleted) throw new Error("Quotation not found");
+    if (deleted.orderFormId) {
+      await OrderForm.updateOne(
+        { _id: deleted.orderFormId, quotationId: deleted._id },
+        { $set: { status: OrderFormStatus.PENDING, quotationId: null, convertedAt: null, convertedBy: null } }
+      );
+    }
     return { id };
   },
 };

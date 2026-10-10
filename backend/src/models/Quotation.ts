@@ -46,6 +46,7 @@ export interface IQuotation extends Document {
   completedBy?: mongoose.Types.ObjectId | null;
   completedAt?: Date | null;
   statusHistory: IQuotationStatusHistory[];
+  orderFormId?: mongoose.Types.ObjectId | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -91,6 +92,7 @@ const QuotationSchema = new Schema<IQuotation>(
         note: String,
       },
     ],
+    orderFormId: { type: Schema.Types.ObjectId, ref: "OrderForm", default: null },
   },
   { timestamps: true }
 );

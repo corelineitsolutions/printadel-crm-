@@ -297,6 +297,49 @@ export const quotationAPI = {
   deleteQuotation: (id: string) => api.delete(`/quotations/${id}`),
 };
 
+export interface OrderFormPayload {
+  orderDate?: string | null;
+  branch?: string;
+  customerName: string;
+  companyName?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  gstin?: string;
+  orderTakenBy?: string;
+  orderType?: "NEW" | "REPEAT" | "REPRINT";
+  priority?: "NORMAL" | "URGENT";
+  categories?: string[];
+  otherCategory?: string;
+  jobName?: string;
+  items: { description: string; material?: string; size?: string; quantity: number; rate: number }[];
+  finish?: string;
+  artworkInstructions?: string;
+  deliveryDateTime?: string | null;
+  deliveryModes?: string[];
+  siteAddress?: string;
+  landmark?: string;
+  siteContact?: string;
+  contactPhone?: string;
+  installationDateTime?: string | null;
+  extras?: number;
+  discount?: number;
+  transport?: number;
+  taxPercent?: number;
+  advance?: number;
+  paymentMode?: string;
+}
+
+export const orderFormAPI = {
+  getOrderForms: (params?: { status?: string; search?: string }) => api.get("/order-forms", { params }),
+  getOrderFormById: (id: string) => api.get(`/order-forms/${id}`),
+  getNextNumber: () => api.get("/order-forms/next-number"),
+  createOrderForm: (data: OrderFormPayload) => api.post("/order-forms", data),
+  updateOrderForm: (id: string, data: OrderFormPayload) => api.put(`/order-forms/${id}`, data),
+  convertToQuotation: (id: string) => api.post(`/order-forms/${id}/convert`),
+  deleteOrderForm: (id: string) => api.delete(`/order-forms/${id}`),
+};
+
 export const officeAPI = {
   getOffices: (params?: { activeOnly?: boolean }) => api.get("/offices", { params }),
   createOffice: (data: {

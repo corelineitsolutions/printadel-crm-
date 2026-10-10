@@ -815,6 +815,12 @@ export default function QuotationsPage() {
                   <p className="text-xs uppercase text-muted-foreground font-semibold">Details</p>
                   <p><span className="text-muted-foreground">Subject:</span> {details.subject}</p>
                   <p><span className="text-muted-foreground">Designer:</span> {details.assignedTo?.fullName || "Unassigned"}</p>
+                  {details.orderFormId?.formNumber && (
+                    <p>
+                      <span className="text-muted-foreground">From order form:</span>{" "}
+                      <span className="font-mono">{details.orderFormId.formNumber}</span>
+                    </p>
+                  )}
                   {details.validUntil && (
                     <p><span className="text-muted-foreground">Valid until:</span> {format(new Date(details.validUntil), "dd MMM yyyy")}</p>
                   )}
