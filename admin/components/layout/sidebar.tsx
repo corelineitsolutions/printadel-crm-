@@ -25,6 +25,7 @@ import {
   ChevronDown,
   FileText,
   ClipboardList,
+  Package,
 } from "lucide-react";
 
 interface NavItem {
@@ -51,6 +52,7 @@ const navGroups: NavGroup[] = [
     items: [
       { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard", roles: ALL_ROLES },
       { icon: ClipboardList, label: "Order Forms", href: "/order-forms", roles: ALL_ROLES },
+      { icon: Package, label: "Products", href: "/products", roles: ["ADMIN", "MANAGER"] },
       { icon: Printer, label: "Job Cards", href: "/job-cards", roles: ALL_ROLES },
       { icon: FileText, label: "Quotations", href: "/quotations", roles: ALL_ROLES },
       { icon: CheckSquare, label: "Tasks", href: "/tasks", roles: ALL_ROLES },

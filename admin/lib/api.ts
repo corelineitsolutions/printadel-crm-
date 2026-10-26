@@ -330,6 +330,58 @@ export interface OrderFormPayload {
   paymentMode?: string;
 }
 
+export type PricingUnit = "SQUARE_FEET" | "QUANTITY";
+export type CatalogOptionType =
+  | "SPECIFICATION"
+  | "OPERATION"
+  | "POST_OPERATION_1"
+  | "POST_OPERATION_2"
+  | "POST_OPERATION_3";
+
+export interface ProductPayload {
+  subcategoryId: string;
+  name: string;
+  price: number;
+  pricingUnit: PricingUnit;
+  specifications?: string[];
+  operations?: string[];
+  postOperations1?: string[];
+  postOperations2?: string[];
+  postOperations3?: string[];
+  notes?: string | null;
+  isActive?: boolean;
+}
+
+export const productCatalogAPI = {
+  getCategories: (params?: { activeOnly?: boolean }) => api.get("/products/categories", { params }),
+  createCategory: (name: string) => api.post("/products/categories", { name }),
+  updateCategory: (id: string, data: { name?: string; isActive?: boolean }) =>
+    api.put(`/products/categories/${id}`, data),
+  deleteCategory: (id: string) => api.delete(`/products/categories/${id}`),
+
+  getSubCategories: (params?: { categoryId?: string; activeOnly?: boolean }) =>
+    api.get("/products/subcategories", { params }),
+  createSubCategory: (categoryId: string, name: string) =>
+    api.post("/products/subcategories", { categoryId, name }),
+  updateSubCategory: (id: string, data: { categoryId?: string; name?: string; isActive?: boolean }) =>
+    api.put(`/products/subcategories/${id}`, data),
+  deleteSubCategory: (id: string) => api.delete(`/products/subcategories/${id}`),
+
+  getOptions: (params?: { type?: CatalogOptionType; activeOnly?: boolean }) =>
+    api.get("/products/options", { params }),
+  createOption: (type: CatalogOptionType, name: string) => api.post("/products/options", { type, name }),
+  updateOption: (id: string, data: { name?: string; isActive?: boolean }) =>
+    api.put(`/products/options/${id}`, data),
+  deleteOption: (id: string) => api.delete(`/products/options/${id}`),
+
+  getProducts: (params?: { categoryId?: string; subcategoryId?: string; search?: string; activeOnly?: boolean }) =>
+    api.get("/products", { params }),
+  getProductById: (id: string) => api.get(`/products/${id}`),
+  createProduct: (data: ProductPayload) => api.post("/products", data),
+  updateProduct: (id: string, data: Partial<ProductPayload>) => api.put(`/products/${id}`, data),
+  deleteProduct: (id: string) => api.delete(`/products/${id}`),
+};
+
 export const orderFormAPI = {
   getOrderForms: (params?: { status?: string; search?: string }) => api.get("/order-forms", { params }),
   getOrderFormById: (id: string) => api.get(`/order-forms/${id}`),
