@@ -1,13 +1,24 @@
 import mongoose from "mongoose";
-import OrderForm, { OrderFormStatus, OrderPriority, OrderType } from "../models/OrderForm";
+import OrderForm, {
+  CustomerType,
+  ItemPricingUnit,
+  OrderFormStatus,
+  OrderPriority,
+  OrderType,
+} from "../models/OrderForm";
 import Quotation from "../models/Quotation";
 import User, { UserRole } from "../models/User";
 import { quotationService } from "./quotation.service";
 
 export interface OrderFormItemInput {
+  productId?: string | null;
+  productName?: string;
+  pricingUnit?: ItemPricingUnit | null;
   description: string;
   material?: string;
   size?: string;
+  width?: number;
+  height?: number;
   quantity: number;
   rate: number;
 }
@@ -15,6 +26,7 @@ export interface OrderFormItemInput {
 export interface OrderFormInput {
   orderDate?: string | null;
   branch?: string;
+  customerType: CustomerType;
   customerName: string;
   companyName?: string;
   phone?: string;
@@ -64,6 +76,21 @@ const CATEGORY_LABELS: Record<string, string> = {
   OTHER: "Other",
 };
 
+/**
+ * Square-feet products: amount = width(ft) × height(ft) × qty × rate.
+ * Quantity products: amount = qty × rate.
+ */
+export function computeItemAmount(item: OrderFormItemInput) {
+  const quantity = money(item.quantity) || 1;
+  const rate = money(item.rate);
+  const width = money(item.width);
+  const height = money(item.height);
+  if (item.pricingUnit === ItemPricingUnit.SQUARE_FEET) {
+    return round2(width * height * quantity * rate);
+  }
+  return round2(quantity * rate);
+}
+
 /** Tax is charged on items + extras + transport after discount, matching how quotations total up. */
 export function computeOrderTotals(input: {
   items: OrderFormItemInput[];
@@ -74,15 +101,28 @@ export function computeOrderTotals(input: {
   advance?: number;
 }) {
   const items = input.items.map((item) => {
-    const quantity = money(item.quantity);
+    const quantity = money(item.quantity) || 1;
     const rate = money(item.rate);
+    const width = money(item.width);
+    const height = money(item.height);
+    const pricingUnit = item.pricingUnit || null;
+    const size =
+      item.size?.trim() ||
+      (pricingUnit === ItemPricingUnit.SQUARE_FEET && width > 0 && height > 0
+        ? `${width} × ${height} ft`
+        : undefined);
     return {
+      productId: item.productId && mongoose.Types.ObjectId.isValid(item.productId) ? item.productId : null,
+      productName: item.productName?.trim() || undefined,
+      pricingUnit,
       description: item.description.trim(),
       material: item.material?.trim() || undefined,
-      size: item.size?.trim() || undefined,
+      size,
+      width,
+      height,
       quantity,
       rate,
-      amount: round2(quantity * rate),
+      amount: computeItemAmount(item),
     };
   });
   const subtotal = round2(items.reduce((sum, item) => sum + item.amount, 0));
@@ -138,6 +178,7 @@ function buildFields(data: OrderFormInput) {
   return {
     orderDate: data.orderDate ? new Date(data.orderDate) : new Date(),
     branch: data.branch?.trim() || undefined,
+    customerType: data.customerType || CustomerType.RETAILER,
     customerName: data.customerName.trim(),
     companyName: data.companyName?.trim() || undefined,
     phone: data.phone?.trim() || undefined,
@@ -172,6 +213,7 @@ function formatDateTime(value?: Date | null) {
 /** Folds the order-only details (category, finishing, delivery, payment) into the quotation notes. */
 function buildQuotationNotes(orderForm: any) {
   const lines: string[] = [`Converted from order form ${orderForm.formNumber}.`];
+  if (orderForm.customerType) lines.push(`Customer type: ${orderForm.customerType}`);
   const categories = (orderForm.categories || [])
     .map((c: string) => (c === "OTHER" && orderForm.otherCategory ? orderForm.otherCategory : CATEGORY_LABELS[c] || c))
     .join(", ");
@@ -262,11 +304,21 @@ export const orderFormService = {
       if (existing) throw new Error(`Already converted to quotation ${existing.quotationNumber}`);
     }
 
-    const items = orderForm.items.map((item) => ({
-      description: [item.description, item.material, item.size].filter(Boolean).join(" — "),
-      quantity: item.quantity,
-      rate: item.rate,
-    }));
+    const items = orderForm.items.map((item) => {
+      const parts = [item.productName || item.description, item.material, item.size].filter(Boolean);
+      if (item.pricingUnit === ItemPricingUnit.SQUARE_FEET && item.width && item.height) {
+        parts.push(`${item.width}×${item.height} ft`);
+      }
+      const billableQty =
+        item.pricingUnit === ItemPricingUnit.SQUARE_FEET
+          ? round2(money(item.width) * money(item.height) * (money(item.quantity) || 1))
+          : money(item.quantity) || 1;
+      return {
+        description: parts.join(" — "),
+        quantity: billableQty,
+        rate: item.rate,
+      };
+    });
     if (orderForm.extras > 0) {
       items.push({ description: "Extras (design / delivery / installation)", quantity: 1, rate: orderForm.extras });
     }

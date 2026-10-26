@@ -297,9 +297,13 @@ export const quotationAPI = {
   deleteQuotation: (id: string) => api.delete(`/quotations/${id}`),
 };
 
+export type CustomerType = "B2B" | "CORPORATE" | "RETAILER";
+export type PricingUnit = "SQUARE_FEET" | "QUANTITY";
+
 export interface OrderFormPayload {
   orderDate?: string | null;
   branch?: string;
+  customerType: CustomerType;
   customerName: string;
   companyName?: string;
   phone?: string;
@@ -312,7 +316,18 @@ export interface OrderFormPayload {
   categories?: string[];
   otherCategory?: string;
   jobName?: string;
-  items: { description: string; material?: string; size?: string; quantity: number; rate: number }[];
+  items: {
+    productId?: string | null;
+    productName?: string;
+    pricingUnit?: PricingUnit | null;
+    description: string;
+    material?: string;
+    size?: string;
+    width?: number;
+    height?: number;
+    quantity: number;
+    rate: number;
+  }[];
   finish?: string;
   artworkInstructions?: string;
   deliveryDateTime?: string | null;
@@ -330,7 +345,6 @@ export interface OrderFormPayload {
   paymentMode?: string;
 }
 
-export type PricingUnit = "SQUARE_FEET" | "QUANTITY";
 export type CatalogOptionType =
   | "SPECIFICATION"
   | "OPERATION"

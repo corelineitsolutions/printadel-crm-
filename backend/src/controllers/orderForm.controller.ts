@@ -2,12 +2,25 @@ import { Request, Response } from "express";
 import { z } from "zod";
 import { orderFormService } from "../services/orderForm.service";
 import { successResponse, errorResponse } from "../utils/response.utils";
-import { DELIVERY_MODES, ORDER_CATEGORIES, OrderFormStatus, OrderPriority, OrderType } from "../models/OrderForm";
+import {
+  CustomerType,
+  DELIVERY_MODES,
+  ItemPricingUnit,
+  ORDER_CATEGORIES,
+  OrderFormStatus,
+  OrderPriority,
+  OrderType,
+} from "../models/OrderForm";
 
 const itemSchema = z.object({
+  productId: z.string().nullable().optional(),
+  productName: z.string().optional(),
+  pricingUnit: z.nativeEnum(ItemPricingUnit).nullable().optional(),
   description: z.string().trim().min(1, "Item description is required"),
   material: z.string().optional(),
   size: z.string().optional(),
+  width: z.number().min(0).optional(),
+  height: z.number().min(0).optional(),
   quantity: z.number().min(0),
   rate: z.number().min(0),
 });
@@ -17,6 +30,7 @@ const amount = z.number().min(0).optional();
 const orderFormSchema = z.object({
   orderDate: z.string().nullable().optional(),
   branch: z.string().optional(),
+  customerType: z.nativeEnum(CustomerType).default(CustomerType.RETAILER),
   customerName: z.string().trim().min(2, "Customer name is required"),
   companyName: z.string().optional(),
   phone: z.string().optional(),

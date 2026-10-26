@@ -28,12 +28,32 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { orderFormAPI, OrderFormPayload } from "@/lib/api";
+import {
+  CustomerType,
+  orderFormAPI,
+  OrderFormPayload,
+  PricingUnit,
+  productCatalogAPI,
+} from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
 import { formatCurrency } from "@/lib/utils";
 
 type OrderType = "NEW" | "REPEAT" | "REPRINT";
 type Priority = "NORMAL" | "URGENT";
+
+const CUSTOMER_TYPES: { value: CustomerType; label: string; hint: string }[] = [
+  { value: "B2B", label: "B2B", hint: "Business to business orders" },
+  { value: "CORPORATE", label: "Corporate", hint: "Corporate / company accounts" },
+  { value: "RETAILER", label: "Retailer", hint: "Walk-in / retail customers" },
+];
+
+const CUSTOMER_TYPE_LABELS: Record<CustomerType, string> = {
+  B2B: "B2B",
+  CORPORATE: "Corporate",
+  RETAILER: "Retailer",
+};
+
+const NO_PRODUCT = "manual";
 
 const ORDER_TYPES: { value: OrderType; label: string }[] = [
   { value: "NEW", label: "New" },
@@ -67,9 +87,14 @@ const PAYMENT_MODES = ["Cash", "UPI", "Card", "Bank Transfer", "Cheque", "Credit
 const NO_PAYMENT_MODE = "none";
 
 interface ItemRow {
+  productId: string;
+  productName: string;
+  pricingUnit: PricingUnit | "";
   description: string;
   material: string;
   size: string;
+  width: string;
+  height: string;
   quantity: string;
   rate: string;
 }
@@ -77,6 +102,7 @@ interface ItemRow {
 interface FormState {
   orderDate: string;
   branch: string;
+  customerType: CustomerType;
   customerName: string;
   companyName: string;
   phone: string;
@@ -107,11 +133,23 @@ interface FormState {
   paymentMode: string;
 }
 
-const emptyItem = (): ItemRow => ({ description: "", material: "", size: "", quantity: "1", rate: "" });
+const emptyItem = (): ItemRow => ({
+  productId: NO_PRODUCT,
+  productName: "",
+  pricingUnit: "",
+  description: "",
+  material: "",
+  size: "",
+  width: "",
+  height: "",
+  quantity: "1",
+  rate: "",
+});
 
-const emptyForm = (orderTakenBy = ""): FormState => ({
+const emptyForm = (orderTakenBy = "", customerType: CustomerType = "RETAILER"): FormState => ({
   orderDate: format(new Date(), "yyyy-MM-dd"),
   branch: "",
+  customerType,
   customerName: "",
   companyName: "",
   phone: "",
@@ -151,9 +189,23 @@ const toLocalDateTime = (value?: string | null) => (value ? format(new Date(valu
 const toIso = (value: string) => (value ? new Date(value).toISOString() : null);
 const formatDateTime = (value?: string | null) => (value ? format(new Date(value), "dd MMM yyyy, hh:mm a") : "—");
 
+/** Square feet: W × H × qty × rate. Quantity: qty × rate. */
+function itemAmount(item: ItemRow) {
+  const qty = toNumber(item.quantity) || 1;
+  const rate = toNumber(item.rate);
+  if (item.pricingUnit === "SQUARE_FEET") {
+    return toNumber(item.width) * toNumber(item.height) * qty * rate;
+  }
+  return qty * rate;
+}
+
+function itemArea(item: ItemRow) {
+  return toNumber(item.width) * toNumber(item.height) * (toNumber(item.quantity) || 1);
+}
+
 /** Mirrors the backend: tax applies to items + extras + transport after discount. */
 function computeTotals(form: FormState) {
-  const subtotal = form.items.reduce((sum, item) => sum + toNumber(item.quantity) * toNumber(item.rate), 0);
+  const subtotal = form.items.reduce((sum, item) => sum + itemAmount(item), 0);
   const extras = toNumber(form.extras);
   const transport = toNumber(form.transport);
   const gross = subtotal + extras + transport;
@@ -182,10 +234,17 @@ function printOrderForm(o: any) {
     box(o.categories?.includes(c.value), c.value === "OTHER" && o.otherCategory ? `Other: ${o.otherCategory}` : c.label)
   ).join("");
   const rows = (o.items || [])
-    .map(
-      (i: any) =>
-        `<tr><td>${escapeHtml(i.description)}</td><td>${escapeHtml(i.material)}</td><td>${escapeHtml(i.size)}</td><td class="r">${i.quantity}</td><td class="r">${formatCurrency(i.rate)}</td><td class="r">${formatCurrency(i.amount)}</td></tr>`
-    )
+    .map((i: any) => {
+      const sizeLabel =
+        i.pricingUnit === "SQUARE_FEET" && i.width && i.height
+          ? `${i.width} × ${i.height} ft`
+          : i.size || "";
+      const qtyLabel =
+        i.pricingUnit === "SQUARE_FEET"
+          ? `${i.quantity || 1} (${Number(i.width || 0) * Number(i.height || 0) * (i.quantity || 1)} sq ft)`
+          : i.quantity;
+      return `<tr><td>${escapeHtml(i.productName || i.description)}${i.pricingUnit === "SQUARE_FEET" ? " <small>(sq ft)</small>" : i.pricingUnit === "QUANTITY" ? " <small>(qty)</small>" : ""}</td><td>${escapeHtml(i.material)}</td><td>${escapeHtml(sizeLabel)}</td><td class="r">${escapeHtml(qtyLabel)}</td><td class="r">${formatCurrency(i.rate)}</td><td class="r">${formatCurrency(i.amount)}</td></tr>`;
+    })
     .join("");
 
   const html = `<!doctype html><html><head><title>${escapeHtml(o.formNumber)}</title><style>
@@ -204,7 +263,9 @@ function printOrderForm(o: any) {
   <div class="top"><div><div class="title">ORDER FORM</div><div class="sub">CUSTOMER PRINTING AND SIGNAGE ORDER</div>
     ${line("Print shop / Branch", o.branch)}</div>
     <div class="meta"><div><b>Form No.:</b> ${escapeHtml(o.formNumber)}</div><div><b>Date:</b> ${o.orderDate ? format(new Date(o.orderDate), "dd / MM / yyyy") : ""}</div></div></div>
-  <div class="sec"><div class="sh">01 Customer details</div><div class="grid">
+  <div class="sec"><div class="sh">01 Customer details</div>
+    ${line("Customer type", CUSTOMER_TYPE_LABELS[o.customerType as CustomerType] || o.customerType)}
+    <div class="grid">
     ${line("Customer name", o.customerName)}${line("Company name", o.companyName)}
     ${line("Mobile / Phone", o.phone)}${line("Email", o.email)}</div>
     ${line("Address", o.address)}<div class="grid">${line("GSTIN / Tax ID", o.gstin)}${line("Order taken by", o.orderTakenBy)}</div></div>
@@ -300,11 +361,21 @@ export default function OrderFormsPage() {
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [customerTypeOpen, setCustomerTypeOpen] = useState(false);
+  const [pendingCustomerType, setPendingCustomerType] = useState<CustomerType | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm());
   const [detailsId, setDetailsId] = useState<string | null>(null);
   const [convertTarget, setConvertTarget] = useState<any | null>(null);
+
+  const { data: catalogProducts = [] } = useQuery({
+    queryKey: ["products", "order-form"],
+    queryFn: async () => {
+      const res = await productCatalogAPI.getProducts({ activeOnly: true });
+      return Array.isArray(res.data.data) ? res.data.data : [];
+    },
+  });
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["order-forms"] });
@@ -385,8 +456,15 @@ export default function OrderFormsPage() {
   const canEdit = (o: any) => canModify(o) && (o.status !== "CONVERTED" || isAdmin);
 
   const openCreate = () => {
+    setPendingCustomerType(null);
+    setCustomerTypeOpen(true);
+  };
+
+  const continueWithCustomerType = () => {
+    if (!pendingCustomerType) return toast.error("Select a customer type");
     setEditingId(null);
-    setForm(emptyForm(user?.fullName || ""));
+    setForm(emptyForm(user?.fullName || "", pendingCustomerType));
+    setCustomerTypeOpen(false);
     setFormOpen(true);
   };
 
@@ -395,6 +473,7 @@ export default function OrderFormsPage() {
     setForm({
       orderDate: o.orderDate ? format(new Date(o.orderDate), "yyyy-MM-dd") : "",
       branch: o.branch || "",
+      customerType: (o.customerType as CustomerType) || "RETAILER",
       customerName: o.customerName || "",
       companyName: o.companyName || "",
       phone: o.phone || "",
@@ -408,9 +487,14 @@ export default function OrderFormsPage() {
       otherCategory: o.otherCategory || "",
       jobName: o.jobName || "",
       items: (o.items?.length ? o.items : [emptyItem()]).map((i: any) => ({
+        productId: i.productId ? String(i.productId) : NO_PRODUCT,
+        productName: i.productName || "",
+        pricingUnit: (i.pricingUnit as PricingUnit) || "",
         description: i.description || "",
         material: i.material || "",
         size: i.size || "",
+        width: String(i.width ?? ""),
+        height: String(i.height ?? ""),
         quantity: String(i.quantity ?? 1),
         rate: String(i.rate ?? ""),
       })),
@@ -440,22 +524,64 @@ export default function OrderFormsPage() {
   const updateItem = (index: number, patch: Partial<ItemRow>) =>
     setForm((f) => ({ ...f, items: f.items.map((item, i) => (i === index ? { ...item, ...patch } : item)) }));
 
+  const applyProduct = (index: number, productId: string) => {
+    if (productId === NO_PRODUCT) {
+      updateItem(index, {
+        productId: NO_PRODUCT,
+        productName: "",
+        pricingUnit: "",
+        description: "",
+        rate: "",
+        width: "",
+        height: "",
+      });
+      return;
+    }
+    const product = (catalogProducts as any[]).find((p) => String(p._id || p.id) === productId);
+    if (!product) return;
+    updateItem(index, {
+      productId,
+      productName: product.name || "",
+      pricingUnit: product.pricingUnit || "QUANTITY",
+      description: product.name || "",
+      rate: String(product.price ?? 0),
+      width: product.pricingUnit === "SQUARE_FEET" ? "" : "",
+      height: product.pricingUnit === "SQUARE_FEET" ? "" : "",
+      quantity: "1",
+    });
+  };
+
   const handleSave = () => {
     if (form.customerName.trim().length < 2) return toast.error("Customer name is required");
+    for (const item of form.items) {
+      if (!item.description.trim() && item.productId === NO_PRODUCT) continue;
+      if (item.pricingUnit === "SQUARE_FEET" && (toNumber(item.width) <= 0 || toNumber(item.height) <= 0)) {
+        return toast.error(`Enter width and height (ft) for "${item.description || item.productName || "item"}"`);
+      }
+    }
     const items = form.items
-      .filter((i) => i.description.trim())
+      .filter((i) => i.description.trim() || i.productId !== NO_PRODUCT)
       .map((i) => ({
-        description: i.description.trim(),
+        productId: i.productId === NO_PRODUCT ? null : i.productId,
+        productName: i.productName.trim() || undefined,
+        pricingUnit: (i.pricingUnit || null) as PricingUnit | null,
+        description: (i.description || i.productName).trim(),
         material: i.material.trim() || undefined,
-        size: i.size.trim() || undefined,
-        quantity: toNumber(i.quantity),
+        size:
+          i.pricingUnit === "SQUARE_FEET" && toNumber(i.width) > 0 && toNumber(i.height) > 0
+            ? `${toNumber(i.width)} × ${toNumber(i.height)} ft`
+            : i.size.trim() || undefined,
+        width: toNumber(i.width),
+        height: toNumber(i.height),
+        quantity: toNumber(i.quantity) || 1,
         rate: toNumber(i.rate),
       }));
-    if (items.length === 0) return toast.error("Add at least one item with a description");
+    if (items.length === 0) return toast.error("Add at least one product or item");
 
     saveMutation.mutate({
       orderDate: form.orderDate || null,
       branch: form.branch.trim() || undefined,
+      customerType: form.customerType,
       customerName: form.customerName.trim(),
       companyName: form.companyName.trim() || undefined,
       phone: form.phone.trim() || undefined,
@@ -565,6 +691,7 @@ export default function OrderFormsPage() {
                   <th className="px-4 py-3">Form No.</th>
                   <th className="px-4 py-3">Date</th>
                   <th className="px-4 py-3">Customer</th>
+                  <th className="px-4 py-3">Type</th>
                   <th className="px-4 py-3">Job</th>
                   <th className="px-4 py-3">Priority</th>
                   <th className="px-4 py-3 text-right">Total</th>
@@ -580,6 +707,11 @@ export default function OrderFormsPage() {
                     <td className="px-4 py-3">
                       <div className="font-medium">{o.customerName}</div>
                       {o.companyName && <div className="text-xs text-muted-foreground">{o.companyName}</div>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant="secondary" className="text-xs">
+                        {CUSTOMER_TYPE_LABELS[o.customerType as CustomerType] || o.customerType || "—"}
+                      </Badge>
                     </td>
                     <td className="max-w-[200px] truncate px-4 py-3">{o.jobName || "—"}</td>
                     <td className="px-4 py-3">
@@ -642,12 +774,57 @@ export default function OrderFormsPage() {
         )}
       </Card>
 
+      {/* Step 1: Customer type */}
+      <Dialog open={customerTypeOpen} onOpenChange={setCustomerTypeOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Select Customer Type</DialogTitle>
+            <p className="text-sm text-muted-foreground">Choose the customer type, then continue to the order form.</p>
+          </DialogHeader>
+          <div className="grid gap-3">
+            {CUSTOMER_TYPES.map((t) => {
+              const selected = pendingCustomerType === t.value;
+              return (
+                <button
+                  key={t.value}
+                  type="button"
+                  onClick={() => setPendingCustomerType(t.value)}
+                  className={`rounded-lg border p-4 text-left transition ${
+                    selected
+                      ? "border-slate-900 bg-slate-900 text-white shadow-sm"
+                      : "border-slate-200 hover:border-slate-400 hover:bg-slate-50"
+                  }`}
+                >
+                  <div className="text-base font-semibold">{t.label}</div>
+                  <div className={`mt-0.5 text-sm ${selected ? "text-slate-200" : "text-muted-foreground"}`}>
+                    {t.hint}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCustomerTypeOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={continueWithCustomerType} disabled={!pendingCustomerType}>
+              Next
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Create / Edit */}
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingId ? "Edit Order Form" : "New Order Form"}</DialogTitle>
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Customer printing and signage order</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Customer printing and signage order
+              {form.customerType && (
+                <> · <span className="text-slate-800">{CUSTOMER_TYPE_LABELS[form.customerType]}</span></>
+              )}
+            </p>
           </DialogHeader>
 
           <div className="grid gap-3 sm:grid-cols-3">
@@ -668,6 +845,23 @@ export default function OrderFormsPage() {
           <div className="space-y-4">
             <Section number="01" title="Customer details">
               <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Customer type *">
+                  <Select
+                    value={form.customerType}
+                    onValueChange={(v) => v && set("customerType", v as CustomerType)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CUSTOMER_TYPES.map((t) => (
+                        <SelectItem key={t.value} value={t.value}>
+                          {t.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
                 <Field label="Customer name *">
                   <Input value={form.customerName} onChange={(e) => set("customerName", e.target.value)} />
                 </Field>
@@ -740,49 +934,154 @@ export default function OrderFormsPage() {
                 <Input value={form.jobName} onChange={(e) => set("jobName", e.target.value)} />
               </Field>
 
-              <div className="space-y-2">
-                <div className="hidden grid-cols-[2fr_1.4fr_1.2fr_0.7fr_1fr_1fr_auto] gap-2 rounded bg-slate-100 px-2 py-1.5 text-xs font-semibold text-slate-600 md:grid">
-                  <span>Item / Description</span>
-                  <span>Material / Thickness</span>
-                  <span>Size + Units</span>
-                  <span>Qty</span>
-                  <span>Unit Rate</span>
-                  <span className="text-right">Amount</span>
-                  <span className="w-8" />
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold">Products / Items *</p>
+                  {(catalogProducts as any[]).length === 0 && (
+                    <p className="text-xs text-amber-700">No catalog products yet — you can still type a custom item.</p>
+                  )}
                 </div>
-                {form.items.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="grid grid-cols-2 gap-2 rounded-md border p-2 md:grid-cols-[2fr_1.4fr_1.2fr_0.7fr_1fr_1fr_auto] md:items-center md:border-0 md:p-0"
-                  >
-                    <Input
-                      className="col-span-2 md:col-span-1"
-                      placeholder="Item / Description"
-                      value={item.description}
-                      onChange={(e) => updateItem(idx, { description: e.target.value })}
-                    />
-                    <Input placeholder="Material / Thickness" value={item.material} onChange={(e) => updateItem(idx, { material: e.target.value })} />
-                    <Input placeholder="e.g. 6 x 3 ft" value={item.size} onChange={(e) => updateItem(idx, { size: e.target.value })} />
-                    <Input type="number" min={0} placeholder="Qty" value={item.quantity} onChange={(e) => updateItem(idx, { quantity: e.target.value })} />
-                    <Input type="number" min={0} placeholder="Rate" value={item.rate} onChange={(e) => updateItem(idx, { rate: e.target.value })} />
-                    <div className="text-right text-sm font-semibold">
-                      {formatCurrency(toNumber(item.quantity) * toNumber(item.rate))}
+                {form.items.map((item, idx) => {
+                  const isSqFt = item.pricingUnit === "SQUARE_FEET";
+                  return (
+                    <div key={idx} className="space-y-2 rounded-md border p-3">
+                      <div className="flex flex-wrap items-start gap-2">
+                        <div className="min-w-[200px] flex-1 space-y-1">
+                          <Label className="text-xs text-muted-foreground">Product</Label>
+                          <Select value={item.productId} onValueChange={(v) => v && applyProduct(idx, v)}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select product" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={NO_PRODUCT}>Custom item (no product)</SelectItem>
+                              {(catalogProducts as any[]).map((p) => {
+                                const id = String(p._id || p.id);
+                                return (
+                                  <SelectItem key={id} value={id}>
+                                    {p.name} — {formatCurrency(p.price || 0)}/
+                                    {p.pricingUnit === "SQUARE_FEET" ? "sq ft" : "qty"}
+                                  </SelectItem>
+                                );
+                              })}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="min-w-[140px] flex-1 space-y-1">
+                          <Label className="text-xs text-muted-foreground">Description</Label>
+                          <Input
+                            placeholder="Item / Description"
+                            value={item.description}
+                            onChange={(e) => updateItem(idx, { description: e.target.value })}
+                          />
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="mt-5 h-8 w-8 shrink-0 text-rose-500"
+                          disabled={form.items.length === 1}
+                          onClick={() => set("items", form.items.filter((_, i) => i !== idx))}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Material / Thickness</Label>
+                          <Input
+                            placeholder="Material"
+                            value={item.material}
+                            onChange={(e) => updateItem(idx, { material: e.target.value })}
+                          />
+                        </div>
+                        {isSqFt ? (
+                          <>
+                            <div className="space-y-1">
+                              <Label className="text-xs text-muted-foreground">Width (ft) *</Label>
+                              <Input
+                                type="number"
+                                min={0}
+                                step="0.01"
+                                placeholder="W"
+                                value={item.width}
+                                onChange={(e) => updateItem(idx, { width: e.target.value })}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs text-muted-foreground">Height (ft) *</Label>
+                              <Input
+                                type="number"
+                                min={0}
+                                step="0.01"
+                                placeholder="H"
+                                value={item.height}
+                                onChange={(e) => updateItem(idx, { height: e.target.value })}
+                              />
+                            </div>
+                          </>
+                        ) : (
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Size</Label>
+                            <Input
+                              placeholder="e.g. A4 / 6 x 3 ft"
+                              value={item.size}
+                              onChange={(e) => updateItem(idx, { size: e.target.value })}
+                            />
+                          </div>
+                        )}
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">
+                            {isSqFt ? "Qty (pieces)" : "Quantity"}
+                          </Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            placeholder="Qty"
+                            value={item.quantity}
+                            onChange={(e) => updateItem(idx, { quantity: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">
+                            Rate {isSqFt ? "(₹ / sq ft)" : "(₹ / qty)"}
+                          </Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            placeholder="Rate"
+                            value={item.rate}
+                            onChange={(e) => updateItem(idx, { rate: e.target.value })}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                        <div className="text-muted-foreground">
+                          {item.pricingUnit === "SQUARE_FEET" ? (
+                            <span>
+                              Count type: <Badge variant="secondary" className="bg-amber-100 text-amber-800">Square Feet</Badge>
+                              {" · "}
+                              Area: <b>{itemArea(item).toFixed(2)} sq ft</b>
+                              {" · "}W × H × Qty × Rate
+                            </span>
+                          ) : item.pricingUnit === "QUANTITY" ? (
+                            <span>
+                              Count type: <Badge variant="secondary" className="bg-sky-100 text-sky-800">Quantity</Badge>
+                              {" · "}Qty × Rate
+                            </span>
+                          ) : (
+                            <span>Custom item · Qty × Rate</span>
+                          )}
+                        </div>
+                        <div className="font-semibold">Amount: {formatCurrency(itemAmount(item))}</div>
+                      </div>
                     </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 justify-self-end text-rose-500"
-                      disabled={form.items.length === 1}
-                      onClick={() => set("items", form.items.filter((_, i) => i !== idx))}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
+                  );
+                })}
                 <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => set("items", [...form.items, emptyItem()])}>
                   <Plus className="h-3.5 w-3.5" />
-                  Add Item
+                  Add Product / Item
                 </Button>
               </div>
 
@@ -934,6 +1233,10 @@ export default function OrderFormsPage() {
 
               <Section number="01" title="Customer details">
                 <div className="grid gap-1 sm:grid-cols-2">
+                  <DetailLine
+                    label="Customer type"
+                    value={CUSTOMER_TYPE_LABELS[details.customerType as CustomerType] || details.customerType}
+                  />
                   <DetailLine label="Customer" value={details.customerName} />
                   <DetailLine label="Company" value={details.companyName} />
                   <DetailLine label="Phone" value={details.phone} />
@@ -971,7 +1274,17 @@ export default function OrderFormsPage() {
                     <tbody className="divide-y">
                       {(details.items || []).map((i: any, idx: number) => (
                         <tr key={idx}>
-                          <td className="px-2 py-1.5">{i.description}</td>
+                          <td className="px-2 py-1.5">
+                            <div>{i.productName || i.description}</div>
+                            {i.pricingUnit && (
+                              <div className="text-[11px] text-muted-foreground">
+                                {i.pricingUnit === "SQUARE_FEET" ? "Square Feet" : "Quantity"}
+                                {i.pricingUnit === "SQUARE_FEET" && i.width && i.height
+                                  ? ` · ${i.width}×${i.height} ft`
+                                  : ""}
+                              </div>
+                            )}
+                          </td>
                           <td className="px-2 py-1.5">{i.material || "—"}</td>
                           <td className="px-2 py-1.5">{i.size || "—"}</td>
                           <td className="px-2 py-1.5 text-right">{i.quantity}</td>

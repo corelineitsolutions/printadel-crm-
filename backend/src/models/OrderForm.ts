@@ -16,6 +16,17 @@ export enum OrderPriority {
   URGENT = "URGENT",
 }
 
+export enum CustomerType {
+  B2B = "B2B",
+  CORPORATE = "CORPORATE",
+  RETAILER = "RETAILER",
+}
+
+export enum ItemPricingUnit {
+  SQUARE_FEET = "SQUARE_FEET",
+  QUANTITY = "QUANTITY",
+}
+
 export const ORDER_CATEGORIES = [
   "DIGITAL",
   "ACRYLIC",
@@ -30,9 +41,14 @@ export const ORDER_CATEGORIES = [
 export const DELIVERY_MODES = ["PICKUP", "DELIVERY", "INSTALL"] as const;
 
 export interface IOrderFormItem {
+  productId?: mongoose.Types.ObjectId | null;
+  productName?: string;
+  pricingUnit?: ItemPricingUnit | null;
   description: string;
   material?: string;
   size?: string;
+  width?: number;
+  height?: number;
   quantity: number;
   rate: number;
   amount: number;
@@ -43,6 +59,7 @@ export interface IOrderForm extends Document {
   orderDate: Date;
   branch?: string;
 
+  customerType: CustomerType;
   customerName: string;
   companyName?: string;
   phone?: string;
@@ -94,6 +111,12 @@ const OrderFormSchema = new Schema<IOrderForm>(
     orderDate: { type: Date, default: Date.now },
     branch: String,
 
+    customerType: {
+      type: String,
+      enum: Object.values(CustomerType),
+      required: true,
+      default: CustomerType.RETAILER,
+    },
     customerName: { type: String, required: true },
     companyName: String,
     phone: String,
@@ -109,9 +132,14 @@ const OrderFormSchema = new Schema<IOrderForm>(
     jobName: String,
     items: [
       {
+        productId: { type: Schema.Types.ObjectId, ref: "Product", default: null },
+        productName: String,
+        pricingUnit: { type: String, enum: [...Object.values(ItemPricingUnit), null], default: null },
         description: { type: String, required: true },
         material: String,
         size: String,
+        width: { type: Number, default: 0 },
+        height: { type: Number, default: 0 },
         quantity: { type: Number, default: 1 },
         rate: { type: Number, default: 0 },
         amount: { type: Number, default: 0 },
