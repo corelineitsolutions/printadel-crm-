@@ -275,7 +275,11 @@ export default function AttendancePage() {
     }
   }, [attendance, setPunchStatus]);
 
-  // Fetch attendance history
+  // Employee own monthly report filter (defaults to running month)
+  const [myReportMonth, setMyReportMonth] = useState<number>(new Date().getMonth() + 1);
+  const [myReportYear, setMyReportYear] = useState<number>(new Date().getFullYear());
+
+  // Fetch attendance history (always current month for Daily Tracking summary)
   const { data: attendanceHistory } = useQuery({
     queryKey: ["attendance", "history"],
     queryFn: async () => {
@@ -284,9 +288,9 @@ export default function AttendancePage() {
     },
   });
 
-  // Attendance Report State & Query
+  // Attendance Report State & Query (Admin/Manager team report)
   const [reportStartDate, setReportStartDate] = useState<string>(
-    format(new Date(), "yyyy-MM-dd")
+    format(startOfMonth(new Date()), "yyyy-MM-dd")
   );
   const [reportEndDate, setReportEndDate] = useState<string>(
     format(new Date(), "yyyy-MM-dd")
@@ -318,6 +322,16 @@ export default function AttendancePage() {
     },
     enabled: !!user && isAdminOrManager,
     refetchInterval: reportStartDate === format(new Date(), "yyyy-MM-dd") && reportEndDate === format(new Date(), "yyyy-MM-dd") ? 30000 : false,
+  });
+
+  // Employee own full monthly report (only own records)
+  const { data: employeeOwnReport, isLoading: employeeReportLoading } = useQuery({
+    queryKey: ["attendance", "my-report", myReportMonth, myReportYear],
+    queryFn: async () => {
+      const response = await attendanceAPI.getMyAttendance(myReportMonth, myReportYear);
+      return response.data.data;
+    },
+    enabled: !!user && !isAdminOrManager,
   });
 
   // Overtime Tracking State & Query
@@ -549,12 +563,13 @@ export default function AttendancePage() {
     });
   };
 
-  const exportToCSV = () => {
-    if (!myReport?.attendances?.length) return;
+  const exportToCSV = (records?: any[], fileLabel?: string) => {
+    const attendances = records ?? myReport?.attendances;
+    if (!attendances?.length) return;
 
     const headers = ["Employee", "Date", "Punch In", "Punch Out", "Working Hours", "Status"];
-    const rows = myReport.attendances.map((rec: any) => [
-      `"${rec.user?.fullName || "—"}"`,
+    const rows = attendances.map((rec: any) => [
+      `"${rec.user?.fullName || user?.fullName || "—"}"`,
       format(new Date(rec.date), "yyyy-MM-dd"),
       rec.punchInTime ? format(new Date(rec.punchInTime), "hh:mm a") : "—",
       rec.punchOutTime ? format(new Date(rec.punchOutTime), "hh:mm a") : "—",
@@ -572,12 +587,23 @@ export default function AttendancePage() {
     const link = document.createElement("a");
     link.style.display = 'none';
     link.href = url;
-    link.download = `attendance_report_${reportStartDate}_to_${reportEndDate}.csv`;
+    link.download = fileLabel
+      || `attendance_report_${reportStartDate}_to_${reportEndDate}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
+
+  const MONTH_NAMES = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+  ];
+  const reportYearOptions = [
+    new Date().getFullYear() - 1,
+    new Date().getFullYear(),
+    new Date().getFullYear() + 1,
+  ];
   const isPunchedIn = attendance?.punchInTime && !attendance?.punchOutTime;
   const isPunchedOut = attendance?.punchOutTime;
   const isOnBreak = !!attendance?.breaks?.some((b: any) => !b.endTime);
@@ -665,12 +691,10 @@ export default function AttendancePage() {
             <ListRestart className="w-4 h-4" />
             Daily Tracking
           </TabsTrigger>
-          {isAdminOrManager && (
-            <TabsTrigger value="report" className="gap-2">
-              <BarChart3 className="w-4 h-4" />
-              Attendance Report
-            </TabsTrigger>
-          )}
+          <TabsTrigger value="report" className="gap-2">
+            <BarChart3 className="w-4 h-4" />
+            Attendance Report
+          </TabsTrigger>
           <TabsTrigger value="overtime" className="gap-2">
             <Clock className="w-4 h-4" />
             Overtime Tracking
@@ -1202,11 +1226,237 @@ export default function AttendancePage() {
             </Card>
         </TabsContent>
 
-        {/* Tab 2: Attendance Report (Detailed Range Analysis) */}
-        {isAdminOrManager && (
+        {/* Tab 2: Attendance Report */}
         <TabsContent value="report" className="space-y-6">
-          {/* Filters are now integrated into the Detailed Log Table below */}
+          {/* Employee: own full monthly report only */}
+          {!isAdminOrManager && (
+            <>
+              <Card>
+                <CardContent className="p-4 flex flex-wrap gap-4 items-end justify-between">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Month</Label>
+                      <Select
+                        value={myReportMonth.toString()}
+                        onValueChange={(val) => setMyReportMonth(Number(val))}
+                      >
+                        <SelectTrigger className="w-36 h-9 text-xs">
+                          <SelectValue placeholder="Month" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {MONTH_NAMES.map((m, idx) => (
+                            <SelectItem key={m} value={(idx + 1).toString()}>
+                              {m}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Year</Label>
+                      <Select
+                        value={myReportYear.toString()}
+                        onValueChange={(val) => setMyReportYear(Number(val))}
+                      >
+                        <SelectTrigger className="w-28 h-9 text-xs">
+                          <SelectValue placeholder="Year" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {reportYearOptions.map((yr) => (
+                            <SelectItem key={yr} value={yr.toString()}>
+                              {yr}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 mt-5"
+                      onClick={() => {
+                        setMyReportMonth(new Date().getMonth() + 1);
+                        setMyReportYear(new Date().getFullYear());
+                      }}
+                    >
+                      This Month
+                    </Button>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-2 h-9"
+                    onClick={() =>
+                      exportToCSV(
+                        employeeOwnReport?.attendances,
+                        `my_attendance_${myReportYear}-${String(myReportMonth).padStart(2, "0")}.csv`
+                      )
+                    }
+                    disabled={!employeeOwnReport?.attendances?.length}
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Export CSV
+                  </Button>
+                </CardContent>
+              </Card>
 
+              {employeeOwnReport?.summary && (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                  <div className="p-4 rounded-xl border bg-blue-50/30 flex flex-col items-center justify-center text-center">
+                    <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mb-1">Present</p>
+                    <p className="text-2xl font-bold text-blue-900">{employeeOwnReport.summary.presentDays || 0}</p>
+                  </div>
+                  <div className="p-4 rounded-xl border bg-orange-50/30 flex flex-col items-center justify-center text-center">
+                    <p className="text-[10px] font-bold text-orange-600 uppercase tracking-widest mb-1">WFH</p>
+                    <p className="text-2xl font-bold text-orange-900">{employeeOwnReport.summary.wfhDays || 0}</p>
+                  </div>
+                  <div className="p-4 rounded-xl border bg-amber-50/30 flex flex-col items-center justify-center text-center">
+                    <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1">Leaves</p>
+                    <p className="text-2xl font-bold text-amber-900">{employeeOwnReport.summary.leaveDays || 0}</p>
+                  </div>
+                  <div className="p-4 rounded-xl border bg-cyan-50/30 flex flex-col items-center justify-center text-center">
+                    <p className="text-[10px] font-bold text-cyan-600 uppercase tracking-widest mb-1">Extra Days</p>
+                    <p className="text-2xl font-bold text-cyan-900">{employeeOwnReport.summary.extraDays || 0}</p>
+                  </div>
+                  <div className="p-4 rounded-xl border bg-emerald-50/30 flex flex-col items-center justify-center text-center">
+                    <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-1">Total Hours</p>
+                    <p className="text-2xl font-bold text-emerald-900">{formatWorkingHours(employeeOwnReport.summary.totalHours)}</p>
+                  </div>
+                </div>
+              )}
+
+              <Card>
+                <CardHeader className="pb-3 border-b">
+                  <CardTitle className="text-base font-bold uppercase tracking-wider text-muted-foreground/80">
+                    My Attendance — {MONTH_NAMES[myReportMonth - 1]} {myReportYear}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-4">
+                  {employeeReportLoading ? (
+                    <div className="flex justify-center py-12">
+                      <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                    </div>
+                  ) : employeeOwnReport?.attendances?.length > 0 ? (
+                    <div className="rounded-md border overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-muted/50 border-b">
+                            <tr>
+                              <th className="px-4 py-3 text-left font-medium">Date</th>
+                              <th className="px-4 py-3 text-center font-medium">Punch In</th>
+                              <th className="px-4 py-3 text-center font-medium">Punch Out</th>
+                              <th className="px-4 py-3 text-center font-medium">Breaks</th>
+                              <th className="px-4 py-3 text-center font-medium">Working Hrs</th>
+                              <th className="px-4 py-3 text-left font-medium">Work Summary</th>
+                              <th className="px-4 py-3 text-center font-medium">Status</th>
+                              <th className="px-4 py-3 text-center font-medium">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y">
+                            {employeeOwnReport.attendances.map((record: any) => (
+                              <tr key={record._id || record.id} className="hover:bg-muted/30 transition-colors">
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <div className="flex flex-col">
+                                    <span className="font-bold text-sm">
+                                      {format(new Date(record.date), "dd MMM yyyy")}
+                                    </span>
+                                    <span className="text-[10px] text-muted-foreground font-medium">
+                                      {format(new Date(record.date), "EEEE")}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-center whitespace-nowrap">
+                                  {record.punchInTime ? (
+                                    <div className="flex flex-col items-center">
+                                      <span>{format(new Date(record.punchInTime), "hh:mm a")}</span>
+                                      {record.isLate && (
+                                        <Badge variant="outline" className="text-[9px] h-4 bg-amber-50 border-amber-200 text-amber-700">
+                                          Late {record.lateMinutes}m
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  ) : "—"}
+                                </td>
+                                <td className="px-4 py-3 text-center whitespace-nowrap">
+                                  {record.punchOutTime ? format(new Date(record.punchOutTime), "hh:mm a") : "—"}
+                                </td>
+                                <td className="px-4 py-3 text-center whitespace-nowrap">
+                                  {record.breaks?.length ? (
+                                    <div className="flex flex-col items-center gap-0.5 text-xs">
+                                      {record.breaks.map((b: AttendanceBreak, idx: number) => (
+                                        <span key={`${b.startTime}-${idx}`}>
+                                          {format(new Date(b.startTime), "hh:mm a")} –{" "}
+                                          {b.endTime ? format(new Date(b.endTime), "hh:mm a") : "Ongoing"}
+                                          <span className="text-muted-foreground"> ({formatMinutes(getBreakMinutes(b, currentTime))})</span>
+                                        </span>
+                                      ))}
+                                      <span className="font-semibold text-orange-700">
+                                        Total {formatMinutes(record.breaks.reduce((sum: number, b: AttendanceBreak) => sum + getBreakMinutes(b, currentTime), 0))}
+                                      </span>
+                                    </div>
+                                  ) : "—"}
+                                </td>
+                                <td className="px-4 py-3 text-center font-semibold whitespace-nowrap">
+                                  {formatWorkingHours(record.workingHours)}
+                                </td>
+                                <td className="px-4 py-3 min-w-[200px]">
+                                  {record.workSummary ? (
+                                    <p className="text-xs text-muted-foreground line-clamp-2" title={record.workSummary}>
+                                      {record.workSummary}
+                                    </p>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground italic">No summary</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <Badge
+                                    variant={
+                                      record.isExtraDay ? "default" :
+                                      record.status === "PRESENT" ? "default" :
+                                        record.status === "WORK_FROM_HOME" ? "secondary" :
+                                          record.status === "ABSENT" ? "destructive" :
+                                            record.status === "WEEKEND" ? "outline" :
+                                              record.status === "HOLIDAY" ? "outline" : "outline"
+                                    }
+                                    className={`text-[10px] h-5 ${
+                                      record.isExtraDay ? "bg-cyan-600 hover:bg-cyan-700 text-white" :
+                                      record.status?.startsWith("HALF_DAY") ? "bg-purple-100 text-purple-800 border-none" :
+                                      ["SICK", "CASUAL", "VACATION", "UNPAID", "LEAVE"].some(s => record.status?.includes(s)) ? "bg-amber-100 text-amber-800 border-none" : ""
+                                    }`}
+                                  >
+                                    {record.isExtraDay ? "EXTRA DAY" : record.status?.replace("_", " ")}
+                                  </Badge>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 text-muted-foreground hover:text-primary"
+                                    onClick={() => openCorrectionDialog(record)}
+                                  >
+                                    <RotateCcw className="w-3.5 h-3.5" />
+                                  </Button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                      <p>No attendance records for {MONTH_NAMES[myReportMonth - 1]} {myReportYear}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </>
+          )}
+
+          {/* Admin/Manager: team report with date range + employee filter */}
+          {isAdminOrManager && (
+          <>
           {/* Attendance Overview: Day-wise for Managers (Multi-employee) or Grid for Individual */}
           {myReport && (
             isAdminOrManager && selectedEmployeeId === "all" ? (
@@ -1607,8 +1857,9 @@ export default function AttendancePage() {
               )}
             </CardContent>
           </Card>
+          </>
+          )}
         </TabsContent>
-        )}
 
         {/* Tab 3: Overtime System */}
         <TabsContent value="overtime" className="space-y-6">
