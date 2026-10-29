@@ -1572,7 +1572,7 @@ export default function AttendancePage() {
                     size="sm"
                     variant="outline"
                     className="gap-2 h-9 px-4 text-xs font-semibold"
-                    onClick={exportToCSV}
+                    onClick={() => exportToCSV()}
                     disabled={!myReport?.attendances || myReport.attendances.length === 0}
                   >
                     <Download className="w-3.5 h-3.5" />
