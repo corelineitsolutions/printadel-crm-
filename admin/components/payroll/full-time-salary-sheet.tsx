@@ -177,8 +177,9 @@ export function FullTimeSalarySheet({
             Full-time Salary Sheet — {monthLabel} {year}
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
+            Days Worked = attendance this month (present / WFH / half day) + paid Sundays & holidays so far.
             Monthly Salary = Rate ÷ Month Days × Days Worked · Basic+DA 50% · HRA 40% · Conveyance 10% · EPF 12% of Basic · ESIC 0.75% · PT ₹0/175/200.
-            Edit Days Worked, ADV and OTHER directly in the table.
+            Click Generate / Refresh All to pull the latest attendance. You can still edit Days Worked, ADV and OTHER in the table.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 shrink-0">

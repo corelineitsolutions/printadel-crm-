@@ -149,6 +149,10 @@ export async function calculatePayroll(
   let notJoinedDays = 0;
   let totalWorkingHours = 0;
   let overtimeHours = 0;
+  // Real attendance days (punch / PRESENT / WFH / HALF_DAY) — not leave-only credits.
+  let attendedDays = 0;
+  // Sundays & public holidays already passed (and after join) that were not worked but stay paid.
+  let paidOffDaysElapsed = 0;
   const dailyBreakdown: any[] = [];
 
   // Company Leave Policy: Only 1 paid leave is allowed per month (whether approved or unapproved).
@@ -236,6 +240,7 @@ export async function calculatePayroll(
         extraSundayDays += credit;
         extraWorkDays += credit;
         presentDays += credit;
+        attendedDays += credit;
         if (dayWorkingHours > 9) {
           overtimeHours += (dayWorkingHours - 9);
         }
@@ -247,6 +252,7 @@ export async function calculatePayroll(
           notes: isHalfDay ? "Sunday worked (Half Day Extra Pay)" : "Sunday worked (Extra Working Day)",
         });
       } else {
+        if (employeeJoined && !isFutureDate) paidOffDaysElapsed += 1;
         dailyBreakdown.push({
           date: dateKey,
           dayOfWeek,
@@ -279,6 +285,7 @@ export async function calculatePayroll(
         holidayWorkDays += credit;
         extraWorkDays += credit;
         presentDays += credit;
+        attendedDays += credit;
         if (dayWorkingHours > 9) {
           overtimeHours += (dayWorkingHours - 9);
         }
@@ -290,6 +297,7 @@ export async function calculatePayroll(
           notes: isHalfDay ? "Public Holiday worked (Half Day Extra Pay)" : "Public Holiday worked (Extra Day Pay)",
         });
       } else {
+        if (employeeJoined && !isFutureDate) paidOffDaysElapsed += 1;
         dailyBreakdown.push({
           date: dateKey,
           dayOfWeek,
@@ -407,6 +415,7 @@ export async function calculatePayroll(
         }
       } else if (attendance.status === AttendanceStatus.HALF_DAY) {
         presentDays += 0.5;
+        attendedDays += 0.5;
         absentDays += 0.5;
         if (isLateMark) lateCount++;
         dailyBreakdown.push({
@@ -420,6 +429,7 @@ export async function calculatePayroll(
       } else {
         // PRESENT / WORK_FROM_HOME / Punched In
         presentDays += 1;
+        attendedDays += 1;
         if (isLateMark) lateCount++;
         if (dayWorkingHours > 9) {
           overtimeHours += (dayWorkingHours - 9);
@@ -513,9 +523,15 @@ export async function calculatePayroll(
   let sheet: SalarySheetResult | null = null;
   let daysWorkedManual = false;
 
-  // Full-time employees are paid with the Excel salary sheet structure
+  // Full-time employees are paid with the Excel salary sheet structure.
+  // Days Worked comes from real attendance (punch / present / WFH / half day)
+  // plus paid Sundays & public holidays that have already passed — not the full
+  // remaining calendar month, which previously made everyone show 30 mid-month.
   if (employeeType === "Full-time") {
-    const autoDaysWorked = Math.max(0, calendarDays - notJoinedDays - absentDays);
+    const autoDaysWorked = Math.min(
+      calendarDays,
+      Math.max(0, round(attendedDays + paidOffDaysElapsed))
+    );
     daysWorkedManual = overrides.daysWorked !== undefined && overrides.daysWorked !== null;
     sheet = computeSalarySheet({
       salaryRate: monthlySalary,
