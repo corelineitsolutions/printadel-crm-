@@ -16,13 +16,24 @@ import { computeSalarySheet, FULL_TIME_SHEET_RULE, SalarySheetResult } from "../
  * Handles payroll calculation, processing, and payslip generation
  */
 
-// Helper: Format Date to YYYY-MM-DD in IST
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+// Helper: Format Date to YYYY-MM-DD in IST (UTC-component based — TZ-safe)
 function toISTDateKey(date: Date): string {
-  const ist = getISTDate(new Date(date));
-  const y = ist.getFullYear();
-  const m = String(ist.getMonth() + 1).padStart(2, "0");
-  const d = String(ist.getDate()).padStart(2, "0");
+  const shifted = new Date(new Date(date).getTime() + IST_OFFSET_MS);
+  const y = shifted.getUTCFullYear();
+  const m = String(shifted.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(shifted.getUTCDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
+}
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+/** UTC instant for 00:00:00 IST on the given calendar day (server-TZ safe). */
+function istMidnight(year: number, month: number, day: number): Date {
+  return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0) - IST_OFFSET_MS);
 }
 
 /**
@@ -75,8 +86,8 @@ export async function calculatePayroll(
 
   // 2. Date range: 1st of month to last day of selected month in IST
   const daysInMonth = new Date(year, month, 0).getDate();
-  const startDate = getISTStartOfDay(new Date(year, month - 1, 1));
-  const endDate = getISTEndOfDay(new Date(year, month - 1, daysInMonth));
+  const startDate = istMidnight(year, month, 1);
+  const endDate = getISTEndOfDay(istMidnight(year, month, daysInMonth));
 
   // Fetch attendances for this user in the selected month
   const attendances = await Attendance.find({
@@ -131,7 +142,7 @@ export async function calculatePayroll(
   const shiftStartMinutes = (shiftH || 10) * 60 + (shiftM || 0);
   const lateThresholdMinutes = shiftStartMinutes + graceMinutes;
 
-  const todayStartIST = getISTStartOfDay(new Date());
+  const todayKey = toISTDateKey(new Date());
 
   // Counters
   let calendarDays = daysInMonth;
@@ -162,21 +173,21 @@ export async function calculatePayroll(
 
   // Iterate day-by-day through the entire month
   for (let d = 1; d <= daysInMonth; d++) {
-    const curDate = new Date(year, month - 1, d);
-    const istCur = getISTDate(curDate);
-    const dateKey = toISTDateKey(curDate);
-    const dayOfWeek = istCur.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    const dateKey = `${year}-${pad2(month)}-${pad2(d)}`;
+    const curDate = istMidnight(year, month, d);
+    // dayOfWeek from IST midnight's UTC+offset representation
+    const dayOfWeek = new Date(curDate.getTime() + IST_OFFSET_MS).getUTCDay(); // 0 = Sunday
     const isSunday = dayOfWeek === 0;
     const isHoliday = isCompanyHoliday(curDate, holidaySet);
 
     // Check if employee had joined by this day
     const employeeJoined = !user.joinDate || getISTStartOfDay(new Date(user.joinDate)) <= curDate;
     if (!employeeJoined) notJoinedDays++;
-    // Check if this date is in the future for current ongoing month
-    const isFutureDate = getISTStartOfDay(curDate) > todayStartIST;
+    // Future calendar days in the current (or any) month must not count as worked/absent
+    const isFutureDate = dateKey > todayKey;
 
-    const attendance = attendanceMap.get(dateKey);
-    const leave = leaveMap.get(dateKey);
+    const attendance = isFutureDate ? undefined : attendanceMap.get(dateKey);
+    const leave = isFutureDate ? undefined : leaveMap.get(dateKey);
 
     let dayWorkingHours = 0;
     let isLateMark = false;
@@ -524,13 +535,12 @@ export async function calculatePayroll(
   let daysWorkedManual = false;
 
   // Full-time employees are paid with the Excel salary sheet structure.
-  // Days Worked comes from real attendance (punch / present / WFH / half day)
-  // plus paid Sundays & public holidays that have already passed — not the full
-  // remaining calendar month, which previously made everyone show 30 mid-month.
+  // Days Worked = attendance so far + paid leave used + paid Sundays/holidays elapsed.
+  // Future days in the month are never counted (fixes everyone showing 30 mid-month).
   if (employeeType === "Full-time") {
     const autoDaysWorked = Math.min(
       calendarDays,
-      Math.max(0, round(attendedDays + paidOffDaysElapsed))
+      Math.max(0, round(attendedDays + paidLeaveDays + paidOffDaysElapsed))
     );
     daysWorkedManual = overrides.daysWorked !== undefined && overrides.daysWorked !== null;
     sheet = computeSalarySheet({
@@ -626,10 +636,13 @@ const SHEET_FIELDS = [
   "otherDeduction",
 ] as const;
 
-function sheetOverridesFrom(existing: any): SalarySheetOverrides {
+function sheetOverridesFrom(existing: any, opts: { resetDaysWorked?: boolean } = {}): SalarySheetOverrides {
   if (!existing) return {};
+  // Generate / Refresh always recomputes Days Worked from attendance unless
+  // this is a targeted sheet edit that intentionally keeps a manual value.
+  const keepManual = !opts.resetDaysWorked && existing.daysWorkedManual;
   return {
-    daysWorked: existing.daysWorkedManual ? existing.daysWorked : null,
+    daysWorked: keepManual ? existing.daysWorked : null,
     advanceDeduction: existing.advanceDeduction || 0,
     otherDeduction: existing.otherDeduction || 0,
   };
@@ -637,12 +650,15 @@ function sheetOverridesFrom(existing: any): SalarySheetOverrides {
 
 /**
  * Generate Payroll (Create or Update)
+ * @param options.resetDaysWorked - when true (default), clear manual Days Worked and sync from attendance
  */
 export async function generatePayroll(
   userId: string,
   month: number,
-  year: number
+  year: number,
+  options: { resetDaysWorked?: boolean } = {}
 ) {
+  const resetDaysWorked = options.resetDaysWorked !== false;
   const existing = await Payroll.findOne({
     userId,
     month,
@@ -654,11 +670,20 @@ export async function generatePayroll(
       .populate("user", "id fullName employeeId email designation department employeeType gender dateOfBirth joinDate");
   }
 
-  const calculation = await calculatePayroll(userId, month, year, sheetOverridesFrom(existing));
+  const calculation = await calculatePayroll(
+    userId,
+    month,
+    year,
+    sheetOverridesFrom(existing, { resetDaysWorked })
+  );
   const sheetValues = Object.fromEntries(SHEET_FIELDS.map((key) => [key, (calculation as any)[key]]));
 
   if (existing) {
     existing.set(sheetValues);
+    if (resetDaysWorked) {
+      existing.daysWorkedManual = false;
+      existing.daysWorked = calculation.daysWorked;
+    }
     existing.employeeType = calculation.employeeType;
     existing.payrollRule = calculation.payrollRule;
     existing.hourlyRate = calculation.hourlyRate;
@@ -791,9 +816,11 @@ export async function updateSalarySheet(
     throw new Error("Payroll is already paid and cannot be edited");
   }
 
+  let resetDaysWorked = false;
   if (changes.daysWorked !== undefined) {
     if (changes.daysWorked === null) {
       payroll.daysWorkedManual = false;
+      resetDaysWorked = true; // recompute from attendance
     } else {
       const monthDays = payroll.monthDays || new Date(payroll.year, payroll.month, 0).getDate();
       if (changes.daysWorked < 0 || changes.daysWorked > monthDays) {
@@ -807,7 +834,9 @@ export async function updateSalarySheet(
   if (changes.otherDeduction !== undefined) payroll.otherDeduction = Math.max(0, changes.otherDeduction);
   await payroll.save();
 
-  return generatePayroll(payroll.userId.toString(), payroll.month, payroll.year);
+  return generatePayroll(payroll.userId.toString(), payroll.month, payroll.year, {
+    resetDaysWorked,
+  });
 }
 
 /**
@@ -917,32 +946,41 @@ export async function bulkGeneratePayroll(month: number, year: number) {
   const results = {
     success: [] as any[],
     failed: [] as any[],
-    skipped: [] as any[], // PAID/PROCESSED records that were protected
+    skipped: [] as any[], // PAID records that were protected
   };
 
   for (const employee of employees) {
     try {
+      const before = await Payroll.findOne({
+        userId: employee._id,
+        month,
+        year,
+      }).select("status");
+
+      // PAID rows are never overwritten — skip before generate to report clearly
+      if (before?.status === PayrollStatus.PAID) {
+        results.skipped.push({
+          userId: employee._id,
+          fullName: employee.fullName,
+          status: PayrollStatus.PAID,
+          message: "Payroll is already PAID — not overwritten",
+        });
+        continue;
+      }
+
       const payroll = await generatePayroll(
         employee._id.toString(),
         month,
-        year
+        year,
+        { resetDaysWorked: true }
       );
       if (payroll) {
-        // Check if the returned payroll was already PAID/PROCESSED (i.e., it was skipped)
-        if ((payroll as any).status === PayrollStatus.PAID || (payroll as any).status === PayrollStatus.PROCESSED) {
-          results.skipped.push({
-            userId: employee._id,
-            fullName: employee.fullName,
-            status: (payroll as any).status,
-            message: `Payroll is already ${(payroll as any).status} — not overwritten`,
-          });
-        } else {
-          results.success.push({
-            userId: employee._id,
-            fullName: employee.fullName,
-            payrollId: (payroll as any)._id,
-          });
-        }
+        results.success.push({
+          userId: employee._id,
+          fullName: employee.fullName,
+          payrollId: (payroll as any)._id,
+          daysWorked: (payroll as any).daysWorked,
+        });
       }
     } catch (error: any) {
       results.failed.push({

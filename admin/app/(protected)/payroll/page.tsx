@@ -50,7 +50,8 @@ export default function PayrollPage() {
   const [selectedMonth, setSelectedMonth] = useState<number | string>(currentDate.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
   const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [employeeTypeFilter, setEmployeeTypeFilter] = useState<string>("all");
+  // Default to Full-time so managers land on the Excel salary sheet
+  const [employeeTypeFilter, setEmployeeTypeFilter] = useState<string>("Full-time");
   const [searchTerm, setSearchTerm] = useState("");
 
   const [isGenerateDialogOpen, setIsGenerateDialogOpen] = useState(false);
@@ -124,8 +125,11 @@ export default function PayrollPage() {
       payrollAPI.bulkGeneratePayroll(data.month, data.year),
     onSuccess: (response) => {
       const results = response.data.data;
+      const skipped = results.skipped?.length || 0;
       toast.success(
-        `Bulk payroll generated: ${results.success.length} successful, ${results.failed.length} failed`
+        `Payroll refreshed from attendance: ${results.success.length} updated` +
+          (skipped ? `, ${skipped} paid skipped` : "") +
+          (results.failed.length ? `, ${results.failed.length} failed` : "")
       );
       queryClient.invalidateQueries({ queryKey: ["payrolls"] });
       queryClient.invalidateQueries({ queryKey: ["payroll-stats"] });
