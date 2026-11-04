@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -114,6 +114,7 @@ export function FullTimeSalarySheet({
 }: Props) {
   const queryClient = useQueryClient();
   const [isExporting, setIsExporting] = useState(false);
+  const autoRefreshKey = useRef<string | null>(null);
 
   const updateSheetMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Parameters<typeof payrollAPI.updateSalarySheet>[1] }) =>
@@ -129,6 +130,27 @@ export function FullTimeSalarySheet({
     },
   });
 
+  const sheetPayrolls = month === "all" ? [] : payrolls.filter((p) => p.payrollRule === "FULL_TIME_SHEET");
+
+  // If current-month rows still show a full 30 days, auto-refresh once from attendance
+  useEffect(() => {
+    if (month === "all" || isBulkGenerating || sheetPayrolls.length === 0) return;
+    const now = new Date();
+    const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
+    if (!isCurrentMonth) return;
+    const todayDay = now.getDate();
+    const key = `${year}-${month}`;
+    if (autoRefreshKey.current === key) return;
+    const stale = sheetPayrolls.some(
+      (p) => !p.daysWorkedManual && Number(p.daysWorked) > todayDay
+    );
+    if (!stale) return;
+    autoRefreshKey.current = key;
+    onBulkGenerate();
+    // intentionally only re-check when month/year or row count changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [month, year, sheetPayrolls.length, isBulkGenerating]);
+
   if (month === "all") {
     return (
       <Card>
@@ -143,7 +165,6 @@ export function FullTimeSalarySheet({
   const monthEnd = new Date(year, month, 0);
   const generatedUserIds = new Set(payrolls.map((p) => String(p.userId?._id || p.userId)));
   const missingEmployees = employees.filter((e) => !generatedUserIds.has(String(e.id || e._id)));
-  const sheetPayrolls = payrolls.filter((p) => p.payrollRule === "FULL_TIME_SHEET");
   const outdatedPayrolls = payrolls.filter((p) => p.payrollRule !== "FULL_TIME_SHEET");
 
   const total = (key: string) => sheetPayrolls.reduce((s, p) => s + (Number(p[key]) || 0), 0);
