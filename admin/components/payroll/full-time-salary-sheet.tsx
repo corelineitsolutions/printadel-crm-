@@ -198,7 +198,7 @@ export function FullTimeSalarySheet({
             Full-time Salary Sheet — {monthLabel} {year}
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Days Worked = attendance so far (present / WFH / half day) + paid leave + paid Sundays & holidays elapsed — future days are not counted.
+            Days Worked = real attendance (Present / WFH / half day, same as the Attendance Report) + paid leave. Sundays & holidays count only if the employee worked that day.
             Monthly Salary = Rate ÷ Month Days × Days Worked · Basic+DA 50% · HRA 40% · Conveyance 10% · EPF 12% of Basic · ESIC 0.75% · PT ₹0/175/200.
             Click Generate / Refresh All after marking attendance (resets manual Days Worked overrides). You can still edit Days Worked, ADV and OTHER.
           </p>

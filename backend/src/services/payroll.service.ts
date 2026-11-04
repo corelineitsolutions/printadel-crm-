@@ -535,8 +535,10 @@ export async function calculatePayroll(
   let daysWorkedManual = false;
 
   // Full-time employees are paid with the Excel salary sheet structure.
-  // Days Worked = attendance so far + paid leave used + paid Sundays/holidays elapsed.
-  // Hard-cap to calendar days elapsed in the month so mid-month can never show 30.
+  // Days Worked = real attendance days (present / WFH / half day / Sunday-or-holiday worked)
+  // plus paid leave used — same basis as the Attendance Report "Present" count.
+  // Weekly offs & public holidays that were NOT worked are NOT added (that previously
+  // forced almost everyone to Month Days, e.g. 31 in October vs Present 25 on the report).
   if (employeeType === "Full-time") {
     const [ty, tm, td] = todayKey.split("-").map(Number);
     let elapsedMonthDays = calendarDays;
@@ -545,10 +547,11 @@ export async function calculatePayroll(
     } else if (year === ty && month === tm) {
       elapsedMonthDays = Math.min(calendarDays, td); // current month through today (IST)
     }
+    // paidOffDaysElapsed (unworked Sundays/holidays) is kept for breakdown only — not in Days Worked
     const autoDaysWorked = Math.min(
       calendarDays,
       elapsedMonthDays,
-      Math.max(0, round(attendedDays + paidLeaveDays + paidOffDaysElapsed))
+      Math.max(0, round(attendedDays + paidLeaveDays))
     );
     daysWorkedManual = overrides.daysWorked !== undefined && overrides.daysWorked !== null;
     sheet = computeSalarySheet({
