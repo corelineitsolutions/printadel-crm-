@@ -12,6 +12,7 @@ import {
   updateSalarySheet,
 } from "../services/payroll.service";
 import { successResponse, errorResponse } from "../utils/response.utils";
+import { canManageAllSalaries } from "../utils/salaryAccess";
 
 /**
  * Payroll Controller
@@ -145,8 +146,9 @@ export async function handleGetPayrollById(req: Request, res: Response) {
     const payrollId = req.params.id as string;
     const userId = req.user!.userId;
     const userRole = req.user!.role;
+    const canViewAll = canManageAllSalaries(req.user!);
 
-    const payroll = await getPayrollById(payrollId, userId, userRole);
+    const payroll = await getPayrollById(payrollId, userId, userRole, canViewAll);
 
     return successResponse(res, payroll, "Payroll retrieved successfully", 200);
   } catch (error: any) {
@@ -162,6 +164,7 @@ export async function handleGetPayrolls(req: Request, res: Response) {
   try {
     const userId = req.user!.userId;
     const userRole = req.user!.role;
+    const canViewAll = canManageAllSalaries(req.user!);
 
     const month = typeof req.query.month === 'string' ? parseInt(req.query.month) : undefined;
     const year = typeof req.query.year === 'string' ? parseInt(req.query.year) : undefined;
@@ -172,10 +175,11 @@ export async function handleGetPayrolls(req: Request, res: Response) {
       month,
       year,
       status: status as any,
-      employeeId,
+      // Only salary-access roles may filter by another employee
+      employeeId: canViewAll ? employeeId : undefined,
     };
 
-    const payrolls = await getPayrolls(userId, userRole, filters);
+    const payrolls = await getPayrolls(userId, userRole, filters, canViewAll);
 
     return successResponse(res, payrolls, "Payrolls retrieved successfully", 200);
   } catch (error: any) {

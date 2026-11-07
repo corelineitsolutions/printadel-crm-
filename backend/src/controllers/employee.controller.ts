@@ -3,6 +3,7 @@ import { z } from "zod";
 import { successResponse, errorResponse } from "../utils/response.utils";
 import * as employeeService from "../services/employee.service";
 import { uploadEmployeeDocument as uploadDocumentToR2 } from "../config/r2";
+import { canManageAllSalaries, stripSalaryFields } from "../utils/salaryAccess";
 
 /**
  * Employee Controller
@@ -89,13 +90,25 @@ export async function createEmployee(req: Request, res: Response) {
     const requestingUserId = req.user!.id;
     const requestingUserRole = req.user!.role;
 
+    // Only Admin / HR / Accounts may set salary on create
+    if (!canManageAllSalaries(req.user!)) {
+      delete (data as any).monthlySalary;
+      delete (data as any).hourlyRate;
+      delete (data as any).overtimeMultiplier;
+      delete (data as any).salary;
+    }
+
     const user = await employeeService.createEmployee(
       { ...data, role: data.role as any },
       requestingUserId,
       requestingUserRole
     );
 
-    return successResponse(res, user, "Employee created successfully", 201);
+    const payload = canManageAllSalaries(req.user!)
+      ? user
+      : stripSalaryFields((user as any).toObject ? (user as any).toObject() : { ...(user as any) });
+
+    return successResponse(res, payload, "Employee created successfully", 201);
   } catch (error: any) {
     return errorResponse(res, error.message, 400);
   }
@@ -142,6 +155,14 @@ export async function getAllEmployees(req: Request, res: Response) {
       requestingUserRole
     );
 
+    // Hide salary fields from users who are not Admin / HR / Accounts
+    if (!canManageAllSalaries(req.user!) && Array.isArray(result.employees)) {
+      result.employees = result.employees.map((emp: any) => {
+        const doc = emp?.toObject ? emp.toObject() : { ...emp };
+        return stripSalaryFields(doc);
+      });
+    }
+
     return successResponse(
       res,
       result,
@@ -165,7 +186,11 @@ export async function getEmployeeById(req: Request, res: Response) {
 
     const employee = await employeeService.getEmployeeById(id, requestingUserId, requestingUserRole);
 
-    return successResponse(res, employee, "Employee retrieved successfully");
+    const payload = canManageAllSalaries(req.user!)
+      ? employee
+      : stripSalaryFields((employee as any)?.toObject ? (employee as any).toObject() : { ...(employee as any) });
+
+    return successResponse(res, payload, "Employee retrieved successfully");
   } catch (error: any) {
     return errorResponse(res, error.message, 400);
   }
@@ -182,6 +207,14 @@ export async function updateEmployee(req: Request, res: Response) {
     const requestingUserId = req.user!.id;
     const requestingUserRole = req.user!.role;
 
+    // Only Admin / HR / Accounts may change salary fields
+    if (!canManageAllSalaries(req.user!)) {
+      delete (data as any).monthlySalary;
+      delete (data as any).hourlyRate;
+      delete (data as any).overtimeMultiplier;
+      delete (data as any).salary;
+    }
+
     const updated = await employeeService.updateEmployee(
       id,
       { ...data, role: data.role as any },
@@ -189,7 +222,11 @@ export async function updateEmployee(req: Request, res: Response) {
       requestingUserRole
     );
 
-    return successResponse(res, updated, "Employee updated successfully");
+    const payload = canManageAllSalaries(req.user!)
+      ? updated
+      : stripSalaryFields((updated as any)?.toObject ? (updated as any).toObject() : { ...(updated as any) });
+
+    return successResponse(res, payload, "Employee updated successfully");
   } catch (error: any) {
     return errorResponse(res, error.message, 400);
   }

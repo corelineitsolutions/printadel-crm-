@@ -24,7 +24,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
 
     // Live isActive check — prevents deactivated/fired users from accessing the system
     // even if their token has not expired yet.
-    const user = await User.findById(decoded.userId).select("isActive role email").lean();
+    const user = await User.findById(decoded.userId).select("isActive role roleName email").lean();
     if (!user) {
       unauthorizedResponse(res, "User account no longer exists");
       return;
@@ -40,6 +40,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
       userId: decoded.userId,
       email: decoded.email,
       role: (user.role || decoded.role) as any,
+      roleName: (user as any).roleName ?? null,
     };
 
     next();

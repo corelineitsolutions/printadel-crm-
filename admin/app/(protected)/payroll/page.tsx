@@ -41,6 +41,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { cn, formatCurrency } from "@/lib/utils";
 import { FullTimeSalarySheet } from "@/components/payroll/full-time-salary-sheet";
+import { canManageAllSalaries } from "@/lib/salary-access";
 
 export default function PayrollPage() {
   const { user } = useAuthStore();
@@ -58,7 +59,8 @@ export default function PayrollPage() {
   const [isBulkGenerateDialogOpen, setIsBulkGenerateDialogOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState("");
 
-  const isManager = user?.role === "ADMIN" || user?.role === "MANAGER";
+  // All-employee payroll/salary: Admin, HR, Accounts Manager only (not regular managers)
+  const isManager = canManageAllSalaries(user);
 
   // Fetch payroll statistics
   const { data: statsData } = useQuery({

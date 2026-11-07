@@ -58,7 +58,7 @@ export async function loginUser(email: string, password: string) {
  */
 export async function getUserProfile(userId: string) {
   const user = await User.findById(userId).select(
-    "id email fullName role employeeId designation department phone address joinDate managerId isActive createdAt updatedAt"
+    "id email fullName role roleName employeeId designation department phone address joinDate managerId isActive createdAt updatedAt"
   );
   
   if (!user) {

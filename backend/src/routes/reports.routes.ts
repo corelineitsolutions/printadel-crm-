@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authenticate } from "../middleware/auth.middleware";
-import { requireRoles } from "../middleware/role.middleware";
+import { requireRoles, requireSalaryAccess } from "../middleware/role.middleware";
 import { UserRole } from "../models/User";
 import {
   handleAttendanceReport,
@@ -33,8 +33,8 @@ router.get("/tasks", handleTaskCompletionReport);
 // Leave report - All authenticated users
 router.get("/leave", handleLeaveReport);
 
-// Payroll report - ADMIN, MANAGER only
-router.get("/payroll", requireRoles(UserRole.ADMIN, UserRole.MANAGER), handlePayrollReport);
+// Payroll report - Admin / HR / Accounts Manager only
+router.get("/payroll", requireSalaryAccess, handlePayrollReport);
 
 // Employee productivity report - ADMIN, MANAGER only
 router.get(

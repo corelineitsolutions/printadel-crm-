@@ -27,6 +27,7 @@ import { format } from "date-fns";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
 import Link from "next/link";
+import { canManageAllSalaries } from "@/lib/salary-access";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -38,7 +39,7 @@ export default function PayslipPage() {
   const searchParams = useSearchParams();
   const payrollId = params.id as string;
   const { user } = useAuthStore();
-  const isManager = user?.role === "ADMIN" || user?.role === "MANAGER";
+  const isManager = canManageAllSalaries(user);
 
   // Fetch individual payroll record
   const { data: payrollData, isLoading } = useQuery({

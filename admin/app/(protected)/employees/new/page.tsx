@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import { useAuthStore } from "@/store/authStore";
 import { AddOptionDialog } from "@/components/employees/add-option-dialog";
 import { DocumentUpload } from "@/components/employees/document-upload";
+import { canManageAllSalaries } from "@/lib/salary-access";
 
 type BaseRole = "ADMIN" | "MANAGER" | "EMPLOYEE";
 
@@ -75,6 +76,7 @@ export default function NewEmployeePage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
+  const canEditSalary = canManageAllSalaries(user);
   const [allowWorkFromHome, setAllowWorkFromHome] = useState(false);
   const [roleDialogOpen, setRoleDialogOpen] = useState(false);
   const [newRoleBase, setNewRoleBase] = useState<BaseRole>("EMPLOYEE");
@@ -482,27 +484,31 @@ export default function NewEmployeePage() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="monthlySalary">Monthly Salary (₹)</Label>
-                <Input
-                  id="monthlySalary"
-                  type="number"
-                  step="0.01"
-                  {...register("monthlySalary")}
-                  placeholder="25000"
-                />
-              </div>
+              {canEditSalary && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="monthlySalary">Monthly Salary (₹)</Label>
+                    <Input
+                      id="monthlySalary"
+                      type="number"
+                      step="0.01"
+                      {...register("monthlySalary")}
+                      placeholder="25000"
+                    />
+                  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="hourlyRate">Calculated Hourly Rate (₹)</Label>
-                <Input
-                  id="hourlyRate"
-                  type="number"
-                  disabled
-                  value={watch("monthlySalary") ? (parseFloat(watch("monthlySalary") || "0") / 270).toFixed(2) : ""}
-                  placeholder="Auto-calculated (270 hrs)"
-                />
-              </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="hourlyRate">Calculated Hourly Rate (₹)</Label>
+                    <Input
+                      id="hourlyRate"
+                      type="number"
+                      disabled
+                      value={watch("monthlySalary") ? (parseFloat(watch("monthlySalary") || "0") / 270).toFixed(2) : ""}
+                      placeholder="Auto-calculated (270 hrs)"
+                    />
+                  </div>
+                </>
+              )}
             </div>
 
             {selectedRole !== "ADMIN" && (

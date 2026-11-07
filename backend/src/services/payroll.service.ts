@@ -1007,11 +1007,13 @@ export async function bulkGeneratePayroll(month: number, year: number) {
 
 /**
  * Get Payroll by ID
+ * @param canViewAll - Admin / HR / Accounts Manager may view any slip; others only own
  */
 export async function getPayrollById(
   payrollId: string,
   userId: string,
-  userUserRole: string
+  _userUserRole: string,
+  canViewAll = false
 ) {
   const payroll = await Payroll.findById(payrollId)
     .populate("user", "id fullName employeeId email designation department phone address employeeType gender dateOfBirth joinDate")
@@ -1021,8 +1023,8 @@ export async function getPayrollById(
     throw new Error("Payroll not found");
   }
 
-  // Authorization: Employees can only view their own payroll
-  if (userUserRole === "EMPLOYEE" && payroll.userId.toString() !== userId) {
+  // Authorization: only salary-access roles can view other employees' payroll
+  if (!canViewAll && payroll.userId.toString() !== userId) {
     throw new Error("Unauthorized to view this payroll");
   }
 
@@ -1043,21 +1045,23 @@ export async function getPayrollById(
 
 /**
  * Get Payrolls with Filters
+ * @param canViewAll - Admin / HR / Accounts Manager see all; others only own
  */
 export async function getPayrolls(
   userId: string,
-  userUserRole: string,
+  _userUserRole: string,
   filters: {
     month?: number;
     year?: number;
     status?: PayrollStatus;
     employeeId?: string;
-  }
+  },
+  canViewAll = false
 ) {
   const where: any = {};
 
-  // UserRole-based filtering
-  if (userUserRole === "EMPLOYEE") {
+  // Salary access: all employees; everyone else: own payroll only
+  if (!canViewAll) {
     where.userId = userId;
   } else if (filters.employeeId) {
     where.userId = filters.employeeId;

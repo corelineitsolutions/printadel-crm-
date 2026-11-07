@@ -30,6 +30,7 @@ import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
 import { format } from "date-fns";
 import { formatCurrency } from "@/lib/utils";
+import { canManageAllSalaries } from "@/lib/salary-access";
 
 const formatWorkingHours = (hours: number | undefined) => {
   if (!hours) return "0h 0m";
@@ -52,6 +53,8 @@ export default function ReportsPage() {
   const role = user?.role?.toString().toUpperCase() || "";
   const isManager = role === "ADMIN" || role === "MANAGER";
   const isEmployee = role === "EMPLOYEE";
+  // Payroll amounts: Admin / HR / Accounts Manager only
+  const canViewPayroll = canManageAllSalaries(user);
 
   // Fetch dashboard analytics
   const { data: analyticsData } = useQuery({
@@ -122,7 +125,7 @@ export default function ReportsPage() {
     },
   });
 
-  // Fetch payroll report (managers/admins only)
+  // Fetch payroll report (Admin / HR / Accounts Manager only)
   const { data: payrollReport, isLoading: payrollLoading } = useQuery({
     queryKey: ["payroll-report", selectedMonth, selectedYear, selectedUser, selectedDept],
     queryFn: async () => {
@@ -132,7 +135,7 @@ export default function ReportsPage() {
       const response = await api.get("/reports/payroll", { params });
       return response.data.data;
     },
-    enabled: isManager,
+    enabled: canViewPayroll,
   });
 
   return (
@@ -206,7 +209,7 @@ export default function ReportsPage() {
             </CardContent>
           </Card>
 
-          {isManager && (
+          {canViewPayroll && (
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">Monthly Payroll</CardTitle>
@@ -331,7 +334,7 @@ export default function ReportsPage() {
           <TabsTrigger value="attendance">Attendance</TabsTrigger>
           <TabsTrigger value="tasks">Tasks</TabsTrigger>
           <TabsTrigger value="leave">Leave</TabsTrigger>
-          {isManager && <TabsTrigger value="payroll">Payroll</TabsTrigger>}
+          {canViewPayroll && <TabsTrigger value="payroll">Payroll</TabsTrigger>}
         </TabsList>
 
         {/* Attendance Report */}
@@ -840,9 +843,9 @@ export default function ReportsPage() {
           </Card>
         </TabsContent>
 
-        {/* Payroll Report - Manager/Admin Only */}
+        {/* Payroll Report - Admin / HR / Accounts Manager Only */}
         {
-          isManager && (
+          canViewPayroll && (
             <TabsContent value="payroll">
               <Card>
                 <CardHeader>
